@@ -1,2 +1,2 @@
-# bcil
+# BCIL
 Brain Connectomics Imaging Library
