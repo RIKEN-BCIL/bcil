@@ -360,14 +360,10 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 	echo "<BR><BR>" >> $reporthtml
 	
 	# Create scene
-	#sed "s#$DummyPath#$StudyFolder#g" $TemplateFolder/TEMPLATE_structuralQC.scene | sed "s#100307#$Subject#g" | sed "s#S1200.#Templates/S1200.#g" | sed "s#MNI152_T1_0.7mm.nii.gz#Templates/MNI152_T1_0.7mm.nii.gz#g" > $OutputFolder/Structure/StructuralQC.sceness
-	#cat $TemplateFolder/scenes/TEMPLATE_structuralQC.scene | sed "s#100307#$Subject#g" | sed "s#S1200.#Templates/S1200.#g" | sed "s#MNI152_T1_0.7mm.nii.gz#Templates/MNI152_T1_0.7mm.nii.gz#g" > $OutputFolder/Structure/StructuralQC.scene
 	cat $TemplateFolder/scenes/TEMPLATE_structuralQC.scene | sed "s#SubjectID#$Subject#g" | sed "s#S1200.#Templates/S1200.#g" | sed "s#MNI152_T1_0.7mm.nii.gz#Templates/MNI152_T1_0.7mm.nii.gz#g" > $OutputFolder/Structure/StructuralQC.scene
 	# NOTES: how to create TEMPLATE_structuralQC.scene
 	# Subject=K1805171800_MR1
-	# cat $Subject/QC/Structure/StructuralQC.scene | sed "s#$Subject#100307#g" | sed "s#Templates/S1200.#S1200.#g" | sed "s#Templates/MNI152_T1_0.7mm.nii.gz#MNI152_T1_0.7mm.nii.gz#g"  > TEMPLATE_structuralQC.scene
 	# cat $Subject/QC/Structure/StructuralQC.scene | sed "s#$Subject#SubjectID#g" | sed "s#Templates/S1200.#S1200.#g" | sed "s#Templates/MNI152_T1_0.7mm.nii.gz#MNI152_T1_0.7mm.nii.gz#g"  > TEMPLATE_structuralQC.scene
-
 
 	CWD=`pwd`
 	cd $StudyFolder/$Subject/MNINonLinear
