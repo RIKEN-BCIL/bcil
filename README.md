@@ -20,3 +20,6 @@ Please edit this file depending on your environments
 export PATH=[unzipped directory]/bin:$PATH
 ```
 4. Run commands in the directory, [unzipped directory]/bin
+
+## Dependencies
+Workbench, HCP pipeline, FreeSurfer, ImageMagick
