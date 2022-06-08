@@ -22,4 +22,7 @@ export PATH=[unzipped directory]/bin:$PATH
 4. Run commands in the directory, [unzipped directory]/bin
 
 ## Dependencies
-Workbench, HCP pipeline, FreeSurfer, ImageMagick
+Workbench (1.5.0 or higher), HCP pipeline (3.6 or higher), FreeSurfer(5.3 or higher), ImageMagick
+
+## License
+BCIL is licensed under the terms of the MIT license.
