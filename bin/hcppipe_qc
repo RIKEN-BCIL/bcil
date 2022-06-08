@@ -18,6 +18,7 @@ source $BCILDIR/bcilconf/settings.sh
 # CARET7DIR
 # HCPPIPEDIR
 # FREESURFER_HOME
+# FSLDIR
 # Need to install ImageMagick in system.
 
 # Check if ImageMagick is installed (for convert)
@@ -796,10 +797,6 @@ if [[ $Fieldmap = ON && -e $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAn
 	echo "<Font size=2>Output directory:$WD</FONT><BR><hr>"  >> $reporthtml
 
 	FieldMapDir=$StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAndReg/FieldMap
-
-#	hires=$(fslval ${FieldMapDir}/../T1w_acpc.nii.gz pixdim1)
-#	flirt -in ${FieldMapDir}/Magnitude.nii.gz -applyisoxfm $hires -ref ${FieldMapDir}/Magnitude.nii.gz -o ${WD}/Magnitude_hires.nii.gz -interp sinc
-#	convert_xfm -omat ${WD}/T1w_acpc2Fieldmap.mat -inverse ${FieldMapDir}/../Fieldmap2T1w_acpc.mat
  
 	# Magnitude vs T1w_acpc to check registration
 	${FSLDIR}/bin/slicer ${FieldMapDir}/../Magnitude_brain_warppedT1w2T1w_acpc.nii.gz ${FieldMapDir}/../T1w_acpc.nii.gz -s 2 -a ${WD}/MagT1w_acpc.png
@@ -846,31 +843,41 @@ if [[ $Fieldmap = ON && -e $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAn
 		done
 		
 		# Topup fieldmap
-		${FSLDIR}/bin/flirt -in ${FieldMapDir}/TopupField.nii.gz -ref ${FieldMapDir}/../T1w_acpc.nii.gz  -applyxfm -init ${FieldMapDir}/../Fieldmap2T1w_acpc.mat -o ${WD}/TopupField_hires.nii.gz 
- 		${FSLDIR}/bin/fslmaths ${WD}/TopupField_hires.nii.gz -mul -1 ${WD}/grot
- 		${FSLDIR}/bin/overlay 1 0 ${FieldMapDir}/../T1w_acpc.nii.gz -a ${WD}/TopupField_hires.nii.gz 0 100 ${WD}/grot 0 100 ${WD}/fmap+T1w_acpc
- 		${FSLDIR}/bin/imrm ${WD}/grot ${WD}/TopupField_hires.nii.gz
+		${CARET7DIR}/wb_command -volume-gradient ${FieldMapDir}/../FieldMap2T1w_acpc.nii.gz ${WD}/FieldMap2T1w_acpc_gradient.nii.gz -vectors ${WD}/FieldMap2T1w_acpc_gradientvectors.nii.gz
+ 		${FSLDIR}/bin/imrm ${WD}/FieldMap2T1w_acpc_gradient.nii.gz
 
 		echo "${FMtype} fieldmap [rad/sec] in brain area" > ${WD}/qc.tsv
 		${FSLDIR}/bin/fslstats ${FieldMapDir}/TopupField.nii.gz -k ${FieldMapDir}/Magnitude_brain -p 0 -p 25 -p 50 -p 75 -p 100 | awk '{printf "Min\t%1.1f\nQ1\t%1.1f\nQ2\t%1.1f\nQ3\t%1.1f\nMax\t%1.1f\nIQR\t%1.1f\n",$1,$2,$3,$4,$5,$4-$2}' >> ${WD}/qc.tsv
 
 	else # GE fieldmap
 		FMtype="GE"			# GE fieldmap
-		${FSLDIR}/bin/flirt -in ${FieldMapDir}/FieldMap.nii.gz ${FieldMapDir}/../T1w_acpc.nii.gz  -applyxfm -init ${FieldMapDir}/../Fieldmap2T1w_acpc.mat  -o ${WD}/FieldMap_hires.nii.gz
- 		${FSLDIR}/bin/fslmaths ${WD}/FieldMap_hires.nii.gz -mul -1 ${WD}/grot			
-		${FSLDIR}/bin/overlay 1 0 ${FieldMapDir}/../T1w_acpc.nii.gz -a ${WD}/FieldMap_hires.nii.gz 0 100 ${WD}/grot 0 100 ${WD}/fmap+T1w_acpc
-		${FSLDIR}/bin/imrm ${WD}/grot ${WD}/FieldMap_hires.nii.gz
+		${CARET7DIR}/wb_command -volume-gradient ${FieldMapDir}/../FieldMap2T1w_acpc.nii.gz ${WD}/FieldMap2T1w_acpc_gradient.nii.gz -vectors ${WD}/FieldMap2T1w_acpc_gradientvectors.nii.gz
+ 		${FSLDIR}/bin/imrm ${WD}/FieldMap2T1w_acpc_gradient.nii.gz
+
 		echo "${FMtype} fieldmap (rad/sec) in brain area" > ${WD}/qc.tsv
 		${FSLDIR}/bin/fslstats ${FieldMapDir}/FieldMap.nii.gz -k ${FieldMapDir}/Magnitude_brain -p 0 -p 25 -p 50 -p 75 -p 100 | awk '{printf "Min\t%1.1f\nQ1\t%1.1f\nQ2\t%1.1f\nQ3\t%1.1f\nMax\t%1.1f\nIQR\t%1.1f\n",$1,$2,$3,$4,$5,$4-$2}' >> ${WD}/qc.tsv
 	fi
- 	${FSLDIR}/bin/slicer ${WD}/fmap+T1w_acpc -s 2 -a $WD/fmap+T1w_acpc.png
- 	convert $WD/fmap+T1w_acpc.png $reportdir/fmap+T1w_acpc.gif
- 	rm $WD/fmap+T1w_acpc.png
- 	cp ${FSLDIR}/etc/luts/ramp.gif $reportdir/ramp.gif
- 	cp ${FSLDIR}/etc/luts/ramp2.gif $reportdir/ramp2.gif
- 		
-	echo "<I>${FMtype} fieldmap overlaid on T1w_acpc </I><BR><FONT size=1>-100<IMG src=./report/ramp2.gif width=30 height=10 border=0 align=top><IMG src=./report/ramp.gif width=30 height=10 border=0 align=top >+100 [rad/sec]</FONT><BR>"  >> $reporthtml
-	echo "<IMG src= "./report/fmap+T1w_acpc.gif" width=${WIDTH} border="0"><BR><BR>" >> $reporthtml
+
+	cat $TemplateFolder/scenes/TEMPLATE_fieldmapQC.scene | sed "s#SubjectID#$Subject#g" > $OutputFolder/Fieldmap/FieldmapQC.scene
+	# NOTES: how to create TEMPLATE_fieldmapQC.scene
+	# Subject=K1805171800_MR1
+	# cat $Subject/QC/Fieldmap/FieldmapQC.scene | sed "s#$Subject#SubjectID#g" > TEMPLATE_fieldmapQC.scene
+	${CARET7DIR}/wb_command -show-scene $OutputFolder/Fieldmap/FieldmapQC.scene 1 ${reportdir}/FieldmapQC_1.png 1200 1600
+
+# 	${FSLDIR}/bin/slicer ${WD}/fmap+T1w_acpc -s 2 -a $WD/fmap+T1w_acpc.png
+# 	convert $WD/fmap+T1w_acpc.png $reportdir/fmap+T1w_acpc.gif
+# 	rm $WD/fmap+T1w_acpc.png
+# 	cp ${FSLDIR}/etc/luts/ramp.gif $reportdir/ramp.gif
+# 	cp ${FSLDIR}/etc/luts/ramp2.gif $reportdir/ramp2.gif
+ 	
+#	for i in 0 1 2 ; do
+# 		${FSLDIR}/bin/slicer ${WD}/fmapgradvec${i}+T1w_acpc -s 2 -a $WD/fmapgradvec${i}+T1w_acpc.png
+# 	done
+# 	convert -append $WD/fmapgradvec[0-2]+T1w_acpc.png $reportdir/fmapgradvec+T1w_acpc.gif
+#	rm $WD/fmapgradvec[0-2]+T1w_acpc.png
+
+	echo "<I>${FMtype} fieldmap and gradient vectors overlaid on T1w_acpc </I><BR>"  >> $reporthtml
+	echo "<IMG src= "./report/FieldmapQC_1.png" width=${WIDTH} border="0"><BR><BR>" >> $reporthtml
 
 	wc=$(cat ${WD}/qc.tsv | wc -l)
 	echo "<I>$(cat ${WD}/qc.tsv | head -1)</I><BR>"  >> $reporthtml
