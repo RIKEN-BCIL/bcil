@@ -147,10 +147,10 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 	touch $reporthtml
 
 	echo "<HTML><HEAD><link REL=\"stylesheet\" TYPE=\"text/css\" href=\".files/fsl.css\"><TITLE>HCPPIPE QC REPORT</TITLE><link rel="icon" type="image/x-icon" href=".files/favicon.ico"></HEAD><BODY BGCOLOR=\"#FFFFFF\" TEXT=\"#151515\">" >> $reporthtml
-	echo "<hr><img src=.files/logo.png style=\"border:none; width:120px;height:50px;float:right;\"><img src=.files/bmb.png style=\"border:none; width:180px;height:50px;float:right;\"><img src=.files/hcplogo1.jpg style=\"border:none; width:150px;height:50px;float:right;\"><img src=.files/fsl-logo-x2.png style=\"border:none; width:80px;height:50px;float:right;\"><img src=.files/freesurfer.png style=\"border:none; width:100px;height:50px;float:right;\"><B>HCPPIPE QC REPORT</B><BR>" >> $reporthtml
+	echo "<hr><img src=\".files/logo.png\"style=\"border:none; width:120px;height:50px;float:right;\"><img src=\".files/bmb.png\" style=\"border:none; width:180px;height:50px;float:right;\"><img src=\".files/hcplogo1.jpg\" style=\"border:none; width:150px;height:50px;float:right;\"><img src=\".files/fsl-logo-x2.png\" style=\"border:none; width:80px;height:50px;float:right;\"><img src=\".files/freesurfer.png\" style=\"border:none; width:100px;height:50px;float:right;\"><B>HCPPIPE QC REPORT</B><BR>" >> $reporthtml
 	echo "<I>Structure</I><BR>" >>  $reporthtml
-	echo "<FONT size=1>Version $VERSION &copy;2006-2022 RIKEN BCIL</FONT><BR><BR>"  >> $reporthtml
-	echo "<Font size=2>Output directory:$WD</FONT><BR><hr>"  >> $reporthtml
+	echo "<FONT size=\"1\">Version $VERSION &copy;2006-2022 RIKEN BCIL</FONT><BR><BR>"  >> $reporthtml
+	echo "<Font size=\"2\">Output directory:$WD</FONT><BR><hr>"  >> $reporthtml
 	
 	# Run image signal stats
 	T1wFolder=$StudyFolder/$Subject/T1w
@@ -193,7 +193,7 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 
 			if [[ ! $Image =~ restore ]] ; then 			
 				echo "The image was registrated to ACPC space and corrected for static magnetic field (B0) distortion. Please check imaging artifacts and biological changes in the brain. If imaging artifacts are likely seen, please also check the raw image by clicking link below. <BR>" >> $reporthtml
-				echo "<IMG src=./report/${Image}.gif  width=${WIDTH} border=0><BR>" >> $reporthtml
+				echo "<IMG src=\"./report/${Image}.gif\"  width=\"${WIDTH}\" border=\"0\"><BR>" >> $reporthtml
 				if [[ $Image =~ acpc_dc ]] ; then # T1w or T2w
 				
 					if [ -e $StudyFolder/$Subject/"$RawImage"/"$RawImage".nii.gz ] ; then
@@ -202,12 +202,12 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 						${FSLDIR}/bin/slicer $StudyFolder/$Subject/"$RawImage"/"$RawImage".nii.gz -i $range -S 7 1800 $StudyFolder/$Subject/QC/Structure/report/${RawImage}.png
 						convert $OutputFolder/Structure/report/${RawImage}.png $OutputFolder/Structure/report/${RawImage}.gif
 						rm $OutputFolder/Structure/report/${RawImage}.png 			
-						echo "<a href=\"./report/${RawImage}.gif\"target=\"_blank\">Raw image (open in a new tab)</a><BR>" >> $reporthtml	
+						echo "<a href=\"./report/${RawImage}.gif\" target=\"_blank\">Raw image (open in a new tab)</a><BR>" >> $reporthtml	
 					fi
 				fi
 			else
 				echo "The restore image is corrected for radiofrequency (B1) bias estimated by sqrt(T1w * T2w) method (Glasser et al., 2011). Please find imaging homogeneity is increased in restore image comapred with non-restore image. <BR>" >> $reporthtml			
-				echo "<IMG src=./report/${Image}.gif  width=${WIDTH} border=0><BR>" >> $reporthtml
+				echo "<IMG src=\"./report/${Image}.gif\"  width=\"${WIDTH}\" border=\"0\"><BR>" >> $reporthtml
 			fi
 
 			if [[ ! $Image =~ restore ]] ; then 
@@ -227,7 +227,7 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 				paste $StudyFolder/$Subject/QC/Structure/aseg_var_col?.txt > $StudyFolder/$Subject/QC/Structure/aseg_var.txt		
 				cat $StudyFolder/$Subject/QC/Structure/brainmask_fs_mean.txt $StudyFolder/$Subject/QC/Structure/aseg_mean.txt $StudyFolder/$Subject/QC/Structure/brainmask_fs_var.txt $StudyFolder/$Subject/QC/Structure/aseg_var.txt > $StudyFolder/$Subject/QC/Structure/${Image}_stats.txt
 				rm $StudyFolder/$Subject/QC/Structure/aseg_*.txt $StudyFolder/$Subject/QC/Structure/brainmask_fs_*.txt 
-				echo "<a href=\"./${Image}_stats.txt\"target=\"_blank\">Image signal stats (open in a new tab)</a><BR><BR>" >> $reporthtml
+				echo "<a href=\"./${Image}_stats.txt\" target=\"_blank\">Image signal stats (open in a new tab)</a><BR><BR>" >> $reporthtml
 			else
 				echo "<BR><BR>" >> $reporthtml
 			fi
@@ -247,7 +247,7 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 		convert $OutputFolder/Structure/report/T1wmulT2w_brain_norm_modulate_mask.png $OutputFolder/Structure/report/T1wmulT2w_brain_norm_modulate_mask.gif
 		echo "<I>T1wmulT2w_brain_norm_mmodulate_mask</I><BR>"  >> $reporthtml
 		echo "Please check red countors outline non-white matter structures (e.g. ventricles, vasculature, sulci) and reasonably small.<BR>"  >> $reporthtml
-		echo "<IMG src=./report/T1wmulT2w_brain_norm_modulate_mask.gif  width=${WIDTH} border=0><BR><BR>" >> $reporthtml	
+		echo "<IMG src=\"./report/T1wmulT2w_brain_norm_modulate_mask.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 		${FSLDIR}/bin/fslmaths $StudyFolder/$Subject/T1w//BiasField_acpc_dc.nii.gz -thr 1 $OutputFolder/Structure/report/BiasField_thr1
 		${FSLDIR}/bin/fslmaths $StudyFolder/$Subject/T1w//BiasField_acpc_dc.nii.gz -uthr 1 $OutputFolder/Structure/report/BiasField_uthr1		
 		${FSLDIR}/bin/overlay 1 0 $StudyFolder/$Subject/T1w/T1w_acpc_dc_restore.nii.gz -a $OutputFolder/Structure/report/BiasField_thr1.nii.gz 1 1.2 $OutputFolder/Structure/report/BiasField_uthr1.nii.gz 0.8 1 $OutputFolder/Structure/report/BiasFieldOverlay.nii.gz
@@ -257,7 +257,7 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 		${FSLDIR}/bin/imrm $OutputFolder/Structure/report/BiasFieldOverlay.nii.gz $OutputFolder/Structure/report/BiasField_thr1 $OutputFolder/Structure/report/BiasField_uthr1
 		echo "<I>T1wmulT2w biasfield</I><BR>"  >> $reporthtml
 		echo "Please check biasfield is concentric and minimal asymmetry over the brain<BR>"  >> $reporthtml
-		echo "<IMG src=./report/BiasFieldOverlay.gif  width=${WIDTH} border=0><BR><BR>" >> $reporthtml	
+		echo "<IMG src=\"./report/BiasFieldOverlay.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 	fi
 	
 	# Create structural QC scenes
@@ -293,10 +293,10 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 	echo "<hr><BR><B>Registration</B><BR><BR>"  >> $reporthtml
 	echo "<I>T1w_acpc_dc_restore and MNI152</I><BR>"  >> $reporthtml
 	echo "Please check subject's head+brain image (T1w_acpc_dc_restore) in gray color is appropriately positioned in AC-PC MNI space. Red coutours indicate MNI152 standard head+brain. Note that the size and shape of subject's head+brain can be different from MNI152 standard head+brain, becuase this image is transforemed to this space without any scaling (or zooming), shearing or warping. <BR>" >> $reporthtml
-	echo "<IMG src=./report/T1w_acpc_dc_restore+MNI152.gif  width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+	echo "<IMG src=\"./report/T1w_acpc_dc_restore+MNI152.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 	echo "<I>T1w_restore and MNI152</I><BR>"  >> $reporthtml
 	echo "Please check subject's non-linear warped head+brain image (T1w_restore) in gray color is appropriately positioned and well warpred in AC-PC MNI space. Red coutours indicate MNI152 standard head+brain. Note that the size and shape of subject's head+brain is close to those of MNI152 standard head+brain, becuase this image is transforemed to this space with linear and non-linear warping. <BR>" >> $reporthtml
-	echo "<IMG src=./report/T1w_restore+MNI152.gif  width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+	echo "<IMG src=\"./report/T1w_restore+MNI152.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 
 	# Run QC for T2w2T1w registration
 	
@@ -324,9 +324,9 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 	echo "<I>sqrtT1wbyT2w</I><BR>"  >> $reporthtml
 	echo "Please check T1w and T2w images are well aligned together after FSL BBR and FreeSurferBBR. If the image of 'Square root of T1w multiplied by T2w' shows curved lines between Gm/WM boundaries, the T1w and T2w images may not be well alighed. Also please find the BBR cost is reasonably small. In most cases of successful registraion, the values of FS BBR cost may be less than 0.3. <BR>" >> $reporthtml
 	echo "Result of FSL BBR<BR>" >> $reporthtml
-	echo "<IMG src=./report/sqrtT1wbyT2w_FSL.gif  width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+	echo "<IMG src=\"./report/sqrtT1wbyT2w_FSL.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 	echo "Result of FreeSurfer BBR<BR>" >> $reporthtml
-	echo "<IMG src=./report/sqrtT1wbyT2w_FS.gif  width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+	echo "<IMG src=\"./report/sqrtT1wbyT2w_FS.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 
 	if [ -e $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAndReg ] ; then	
 		echo -e "FSL_BBR_mincost\n$(flirt -in $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAndReg/T2w_acpc.nii.gz -ref $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAndReg/T1w_acpc.nii.gz -schedule $FSLDIR/etc/flirtsch/measurecost1.sch -init  $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAndReg/T2w2T1w/T2w_reg.mat -wmseg  $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAndReg/T2w2T1w/T2w_reg_fast_wmseg.nii.gz -cost bbr | head -1 | awk '{print $1}')" > $OutputFolder/Structure/T2wToT1w.mincost1.csv
@@ -385,14 +385,14 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 	echo "Pial and white surfaces are overlaid on T1w_restore in MNINonLinear space. Please check the surfaces are correcty estimated. <BR>">> $reporthtml
 	convert ${reportdir}/StructuralQC_${i}.png -quality 85 ${reportdir}/StructuralQC_${i}.jpg
 	rm -rf ${reportdir}/StructuralQC_${i}.png
-	echo "<IMG src=./report/StructuralQC_${i}.jpg  width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+	echo "<IMG src=\"./report/StructuralQC_${i}.jpg\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 	i=2
 	${CARET7DIR}/wb_command -show-scene $OutputFolder/Structure/StructuralQC.scene $i ${reportdir}/StructuralQC_${i}.png 1200 1200
 	${CARET7DIR}/wb_command -file-information $OutputFolder/Structure/StructuralQC.scene | grep '#' | awk 'NR=='$i' {printf "<I>StructuralQC.scene: %s</I><BR>", $0}' >> $reporthtml
 	echo "Subject MyelinMap_BC in top row, group average MyelinMap_BC in 2nd row, Subject Sulc in 3rd row, group average Sulc in 4th row, Areal Distortion of MSMSulc and MSMAll in 5th and 6th rows, respectively. For Areal Distortion, the color bar of areal distoriton is scaled from -1 to 1 in ln(2). <BR>" >> $reporthtml
 	convert ${reportdir}/StructuralQC_${i}.png -quality 85 ${reportdir}/StructuralQC_${i}.jpg
 	rm -rf ${reportdir}/StructuralQC_${i}.png
-	echo "<IMG src=./report/StructuralQC_${i}.jpg  width=${WIDTH} border=0><BR>" >> $reporthtml
+	echo "<IMG src=\"./report/StructuralQC_${i}.jpg\"  width=\"${WIDTH}\" border=\"0\"><BR>" >> $reporthtml
 	
 	if [ -e $StudyFolder/$Subject/MNINonLinear/fsaverage_LR32k/${Subject}.MyelinMap_BC_MSMAll.32k_fs_LR.dscalar.nii ] ; then
 		SurfReg=MSMAll
@@ -449,7 +449,7 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 	echo "Estimated 'surface defect' based on the robust z-score of MyelinMap_BC and thickness in HCP-S1200 data. Vertices with an absolute z-score larger than 5 (|z|>5) in both metrics are shown in blue. The number of vertices with this threshold is termed as a surface defect score 5 (SDS5). <BR>" >> $reporthtml
 	convert ${reportdir}/StructuralQC_${i}.png -quality 85 ${reportdir}/StructuralQC_${i}.jpg
 	rm -rf ${reportdir}/StructuralQC_${i}.png
-	echo "<IMG src=./report/StructuralQC_${i}.jpg  width=${WIDTH} border=0><BR>" >> $reporthtml
+	echo "<IMG src=\"./report/StructuralQC_${i}.jpg\"  width=\"${WIDTH}\" border=\"0\"><BR>" >> $reporthtml
 
 	for i in 3 4 5 6 7 ; do
 		SurfaceDefectScore=$(${CARET7DIR}/wb_command -cifti-stats $OutputFolder/Structure/SurfaceDefect${i}.dscalar.nii -reduce COUNT_NONZERO)
@@ -467,7 +467,7 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 	echo "Midthickness surfaces (black contour) and Jacobian map (magenta and orange). Jacobian map only shows those values less than 0.5 or higher than 2.<BR>" >> $reporthtml
 	convert ${reportdir}/StructuralQC_${i}.png -quality 85 ${reportdir}/StructuralQC_${i}.jpg
 	rm -rf ${reportdir}/StructuralQC_${i}.png
-	echo "<IMG src=./report/StructuralQC_${i}.jpg  width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+	echo "<IMG src=\"./report/StructuralQC_${i}.jpg\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 			
 fi
 
@@ -490,17 +490,17 @@ if [[ $Diff = ON && -e $StudyFolder/$Subject/Diffusion ]] ; then
 	touch $reporthtml
 	
 	echo "<HTML><HEAD><link REL=\"stylesheet\" TYPE=\"text/css\" href=\".files/fsl.css\"><TITLE>HCPPIPE QC REPORT</TITLE><link rel="icon" type="image/x-icon" href=".files/favicon.ico"></HEAD><BODY BGCOLOR=\"#FFFFFF\" TEXT=\"#151515\">" >> $reporthtml
-	echo "<hr><img src=.files/logo.png style=\"border:none; width:120px;height:50px;float:right;\"><img src=.files/bmb.png style=\"border:none; width:180px;height:50px;float:right;\"><img src=.files/hcplogo1.jpg style=\"border:none; width:150px;height:50px;float:right;\"><img src=.files/fsl-logo-x2.png style=\"border:none; width:80px;height:50px;float:right;\"><img src=.files/freesurfer.png style=\"border:none; width:100px;height:50px;float:right;\"><B>HCPPIPE QC REPORT</B><BR>" >> $reporthtml
+	echo "<hr><img src=\".files/logo.png\"style=\"border:none; width:120px;height:50px;float:right;\"><img src=\".files/bmb.png\" style=\"border:none; width:180px;height:50px;float:right;\"><img src=\".files/hcplogo1.jpg\" style=\"border:none; width:150px;height:50px;float:right;\"><img src=\".files/fsl-logo-x2.png\" style=\"border:none; width:80px;height:50px;float:right;\"><img src=\".files/freesurfer.png\" style=\"border:none; width:100px;height:50px;float:right;\"><B>HCPPIPE QC REPORT</B><BR>" >> $reporthtml
 	echo "<I>Diffusion</I><BR>" >>  $reporthtml
-	echo "<FONT size=1>Version $VERSION &copy;2006-2022 RIKEN BCIL</FONT><BR><BR>"  >> $reporthtml
-	echo "<Font size=2>Output directory:$WD</FONT><BR><hr>"  >> $reporthtml
+	echo "<FONT size=\"1\">Version $VERSION &copy;2006-2022 RIKEN BCIL</FONT><BR><BR>"  >> $reporthtml
+	echo "<Font size=\"2\">Output directory:$WD</FONT><BR><hr>"  >> $reporthtml
 
 	${FSLDIR}/bin/flirt -in $StudyFolder/$Subject/T1w/Diffusion/dti_FA -applyxfm -init ${FSLDIR}/etc/flirtsch/ident.mat -ref $StudyFolder/$Subject/T1w/T1w_acpc_dc_restore -o $OutputFolder/Diffusion/dti_FA_hires -interp spline
 	${FSLDIR}/bin/slicer $OutputFolder/Diffusion/dti_FA_hires $StudyFolder/$Subject/T1w/T1w_acpc_dc_restore -s 2 -e 0.05 -a $OutputFolder/Diffusion/report/dtiFA+T1w_acpc_dc_restore.png
 	convert $OutputFolder/Diffusion/report/dtiFA+T1w_acpc_dc_restore.png $OutputFolder/Diffusion/report/dtiFA+T1w_acpc_dc_restore.gif
 	rm $OutputFolder/Diffusion/report/dtiFA+T1w_acpc_dc_restore.png
 	echo "<I>Diffusion FA and T1w_acpc_dc_restore</I><BR>"  >> $reporthtml
-	echo "<IMG src=./report/dtiFA+T1w_acpc_dc_restore.gif  width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+	echo "<IMG src=\"./report/dtiFA+T1w_acpc_dc_restore.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 
 	if [[ ! -e  $StudyFolder/$Subject/Diffusion/QC ]] ; then
 		#. /opt/rh/rh-python36/enable
@@ -526,7 +526,8 @@ if [[ $Diff = ON && -e $StudyFolder/$Subject/Diffusion ]] ; then
 		echo "</tr>"  >> $reporthtml 
 	done
 	echo "</table>"  >> $reporthtml 
-	echo "<BR><BR>For detials see <B><a href=\"./qc.pdf\"target=\"_blank\">Eddy QC report</a></B>" >> $reporthtml
+	echo "<BR><BR>For detials see <B><a href=\"./qc.pdf\" target=\"_blank\">Eddy QC report</a></B>" >> $reporthtml
+	echo "</BODY></HTML>" >>  $reporthtml
 
 fi
 
@@ -552,11 +553,11 @@ if [[ $Tract = ON && -e $StudyFolder/$Subject/T1w/Diffusion.bedpostX ]] ; then
 	touch $reporthtml
 
 	echo "<HTML><HEAD><link REL=\"stylesheet\" TYPE=\"text/css\" href=\".files/fsl.css\"><TITLE>HCPPIPE QC REPORT</TITLE><link rel="icon" type="image/x-icon" href=".files/favicon.ico"></HEAD><BODY BGCOLOR=\"#FFFFFF\" TEXT=\"#151515\">" >> $reporthtml
-	echo "<hr><img src=.files/logo.png style=\"border:none; width:120px;height:50px;float:right;\"><img src=.files/bmb.png style=\"border:none; width:180px;height:50px;float:right;\"><img src=.files/hcplogo1.jpg style=\"border:none; width:150px;height:50px;float:right;\"><img src=.files/fsl-logo-x2.png style=\"border:none; width:80px;height:50px;float:right;\"><img src=.files/freesurfer.png style=\"border:none; width:100px;height:50px;float:right;\"><B>HCPPIPE QC REPORT</B><BR>" >> $reporthtml
+	echo "<hr><img src=\".files/logo.png\"style=\"border:none; width:120px;height:50px;float:right;\"><img src=\".files/bmb.png\" style=\"border:none; width:180px;height:50px;float:right;\"><img src=\".files/hcplogo1.jpg\" style=\"border:none; width:150px;height:50px;float:right;\"><img src=\".files/fsl-logo-x2.png\" style=\"border:none; width:80px;height:50px;float:right;\"><img src=\".files/freesurfer.png\" style=\"border:none; width:100px;height:50px;float:right;\"><B>HCPPIPE QC REPORT</B><BR>" >> $reporthtml
 
 	echo "<I>Tractography</I><BR>" >>  $reporthtml
-	echo "<FONT size=1>Version $VERSION &copy;2006-2022 RIKEN BCIL</FONT><BR><BR>"  >> $reporthtml
-	echo "<Font size=2>Output directory:$WD</FONT><BR><hr>"  >> $reporthtml
+	echo "<FONT size=\"1\">Version $VERSION &copy;2006-2022 RIKEN BCIL</FONT><BR><BR>"  >> $reporthtml
+	echo "<Font size=\"2\">Output directory:$WD</FONT><BR><hr>"  >> $reporthtml
 
 	DiffRes=`${FSLDIR}/bin/fslval $StudyFolder/${Subject}/T1w/Diffusion/data pixdim1`
 	DiffRes=`printf "%0.2f" ${DiffRes}`
@@ -587,6 +588,7 @@ if [[ $Tract = ON && -e $StudyFolder/$Subject/T1w/Diffusion.bedpostX ]] ; then
 		echo "</tr>"  >> $reporthtml 
 	done
 	echo "</table>"  >> $reporthtml 
+	echo "</BODY></HTML>" >>  $reporthtml
 
 fi
 
@@ -610,11 +612,11 @@ if [[ $Func = ON ]] ; then
 	touch $reporthtml
 	
 	echo "<HTML><HEAD><link REL=\"stylesheet\" TYPE=\"text/css\" href=\".files/fsl.css\"><TITLE>HCPPIPE QC REPORT</TITLE><link rel="icon" type="image/x-icon" href=".files/favicon.ico"></HEAD><BODY BGCOLOR=\"#FFFFFF\" TEXT=\"#151515\">" >> $reporthtml
-	echo "<hr><img src=.files/logo.png style=\"border:none; width:120px;height:50px;float:right;\"><img src=.files/bmb.png style=\"border:none; width:180px;height:50px;float:right;\"><img src=.files/hcplogo1.jpg style=\"border:none; width:150px;height:50px;float:right;\"><img src=.files/fsl-logo-x2.png style=\"border:none; width:80px;height:50px;float:right;\"><img src=.files/freesurfer.png style=\"border:none; width:100px;height:50px;float:right;\"><B>HCPPIPE QC REPORT</B><BR>" >> $reporthtml
+	echo "<hr><img src=\".files/logo.png\"style=\"border:none; width:120px;height:50px;float:right;\"><img src=\".files/bmb.png\" style=\"border:none; width:180px;height:50px;float:right;\"><img src=\".files/hcplogo1.jpg\" style=\"border:none; width:150px;height:50px;float:right;\"><img src=\".files/fsl-logo-x2.png\" style=\"border:none; width:80px;height:50px;float:right;\"><img src=\".files/freesurfer.png\" style=\"border:none; width:100px;height:50px;float:right;\"><B>HCPPIPE QC REPORT</B><BR>" >> $reporthtml
 
 	echo "<I>Function</I><BR>" >>  $reporthtml
-	echo "<FONT size=1>Version $VERSION &copy;2006-2022 RIKEN BCIL</FONT><BR><BR>"  >> $reporthtml
-	echo "<Font size=2>Output directory:$WD</FONT><BR><hr>"  >> $reporthtml
+	echo "<FONT size=\"1\">Version $VERSION &copy;2006-2022 RIKEN BCIL</FONT><BR><BR>"  >> $reporthtml
+	echo "<Font size=\"2\">Output directory:$WD</FONT><BR><hr>"  >> $reporthtml
 
 	for fmri in $(echo $Tasklist | sed -e 's/@/ /g') ; do
 
@@ -646,9 +648,9 @@ if [[ $Func = ON ]] ; then
 		${FSLDIR}/bin/fsl_tsplot -i  $StudyFolder/$Subject/${fmriname}/Movement_Regressors.txt --start=1 --finish=3 -o $OutputFolder/Function/report/${fmriname}/trans.png -t "Translations" -a "X,Y,Z" -x "[volume]" -y "[mm]" -w 1800
 		${FSLDIR}/bin/fsl_tsplot -i  $StudyFolder/$Subject/${fmriname}/Movement_Regressors.txt --start=4 --finish=6 -o $OutputFolder/Function/report/${fmriname}/rot.png -t "Rotations" -a "X,Y,Z" -x "[volume]" -y "[degree]" -w 1800
 		echo "<I>${fmriname} motion regressors - translations </I><BR>"  >> $reporthtml
-		echo "<IMG src=./report/${fmriname}/trans.png  width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+		echo "<IMG src=\"./report/${fmriname}/trans.png\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 		echo "<I>${fmriname} motion regressors - rotations </I><BR>"  >> $reporthtml
-		echo "<IMG src=./report/${fmriname}/rot.png  width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+		echo "<IMG src=\"./report/${fmriname}/rot.png\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 
 		# For cheking mean signal
 		if [[ -e $StudyFolder/$Subject/${fmriname}/${fmriname}_nonlin_finalmask.nii.gz ]] ; then
@@ -663,7 +665,7 @@ if [[ $Func = ON ]] ; then
 		paste $OutputFolder/Function/report/${fmriname}/${fmriname}_orig_ts.txt $OutputFolder/Function/report/${fmriname}/${fmriname}_nonlin_ts.txt > $OutputFolder/Function/report/${fmriname}/${fmriname}_ts.txt
 		${FSLDIR}/bin/fsl_tsplot -i $OutputFolder/Function/report/${fmriname}/${fmriname}_ts.txt -o $OutputFolder/Function/report/${fmriname}/${fmriname}_ts.png -t "Mean signal" -a "${fmriname}_orig,${fmriname}_nonlin" -x "[volume]" -y "[a.u.]" -w 1800
 		echo "<I>${fmriname} mean signal </I><BR>"  >> $reporthtml
-		echo "<IMG src=./report/${fmriname}/${fmriname}_ts.png  width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+		echo "<IMG src=\"./report/${fmriname}/${fmriname}_ts.png\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 
 		# registration
 		# For checking funcion and brain mask
@@ -671,14 +673,14 @@ if [[ $Func = ON ]] ; then
 		convert $OutputFolder/Function/report/${fmriname}+finalmask.png $OutputFolder/Function/report/${fmriname}/${fmriname}+finalmask.gif
 		rm $OutputFolder/Function/report/${fmriname}+finalmask.png
 		echo "<hr><I>Registration between ${fmriname} and finalmask </I><BR>"  >> $reporthtml
-		echo "<IMG src=./report/${fmriname}/${fmriname}+finalmask.gif  width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+		echo "<IMG src=\"./report/${fmriname}/${fmriname}+finalmask.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 
 		# For checking registration between Scout and T1w_acpc in volume
 		${FSLDIR}/bin/slicer $StudyFolder/$Subject/${fmriname}/Scout2T1w $StudyFolder/$Subject/T1w/T1w_acpc_dc_restore -s 2 -e 0.05 -a $OutputFolder/Function/report/${fmriname}+T1w_acpc_dc_restore.png
 		convert $OutputFolder/Function/report/${fmriname}+T1w_acpc_dc_restore.png $OutputFolder/Function/report/${fmriname}/${fmriname}+T1w_acpc_dc_restore.gif
 		rm $OutputFolder/Function/report/${fmriname}+T1w_acpc_dc_restore.png
 		echo "<I>Registration between ${fmriname} and T1w_acpc_dc_restore</I><BR>"  >> $reporthtml
-		echo "<IMG src=./report/${fmriname}/${fmriname}+T1w_acpc_dc_restore.gif  width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+		echo "<IMG src=\"./report/${fmriname}/${fmriname}+T1w_acpc_dc_restore.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 
 		# For checking registration between Scout and T1w_acpc in bbr
 		
@@ -690,7 +692,7 @@ if [[ $Func = ON ]] ; then
 		convert $OutputFolder/Function/report/${fmriname}/${fmriname}BBRQC.png $OutputFolder/Function/report/${fmriname}/${fmriname}BBRQC.gif
 		rm -rf $OutputFolder/Function/report/${fmriname}/${fmriname}BBRQC.png
 		echo "<I>Registration between ${fmriname} and white surface using FreeSurfer BBR</I><BR>"  >> $reporthtml
-		echo "<IMG src=./report/${fmriname}/${fmriname}BBRQC.gif width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+		echo "<IMG src=\"./report/${fmriname}/${fmriname}BBRQC.gif\" width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 		wc=$(cat $StudyFolder/$Subject/${fmriname}/DistortionCorrectionAndEPIToT1wReg_FLIRTBBRAndFreeSurferBBRbased/EPItoT1w.dat.mincost | wc -l)
 		echo "<I>${fmriname} FreeSurfer BBR mincost</I><BR>"  >> $reporthtml
 		echo "<table><tr>"  >> $reporthtml 
@@ -724,13 +726,13 @@ if [[ $Func = ON ]] ; then
 		${FSLDIR}/bin/fsl_tsplot -i $OutputFolder/Function/${fmriname}/${fmriname}_all_ts.txt -o $OutputFolder/Function/report/${fmriname}/${fmriname}_all_ts.png -t "Demeaned signal" -a "${fmriname},${fmriname}_hp${hp},${fmriname}_hp${hp}_clean" -x "[volume]" -y "[a.u.]" -w 1800
 		convert $OutputFolder/Function/report/${fmriname}/${fmriname}_all_ts.png $OutputFolder/Function/report/${fmriname}/${fmriname}_all_ts.gif
 		rm -rf $OutputFolder/Function/report/${fmriname}/${fmriname}_all_ts.png
-		echo "<IMG src=./report/${fmriname}/${fmriname}_all_ts.gif  width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+		echo "<IMG src=\"./report/${fmriname}/${fmriname}_all_ts.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 
 		if [ -e $StudyFolder/$Subject/MNINonLinear/Results/${fmriname}/${fmriname}_hp${hp}.ica/report/0000index.html ] ; then
 			mkdir -p $OutputFolder/Function/report/${fmriname}/${fmriname}_hp${hp}.ica
 			${CARET7DIR}/wb_command -scene-file-relocate $StudyFolder/$Subject/MNINonLinear/Results/${fmriname}/${Subject}_BOLD_CONCAT_ICA_Classification_singlescreen.scene $OutputFolder/Function/${fmriname}_ICA-FIX_QC.scene
 			cp -r $StudyFolder/$Subject/MNINonLinear/Results/${fmriname}/${fmriname}_hp${hp}.ica/report $OutputFolder/Function/report/${fmriname}/${fmriname}_hp${hp}.ica/
-			echo "<I><a href=\"./report/${fmriname}/${fmriname}_hp${hp}.ica/report/0000index.html\"target=\"_blank\">ICA-FIX QC Report (open in a new tab)</a></I><BR>" >> $reporthtml			
+			echo "<I><a href=\"./report/${fmriname}/${fmriname}_hp${hp}.ica/report/0000index.html\" target=\"_blank\">ICA-FIX QC Report (open in a new tab)</a></I><BR>" >> $reporthtml			
 	    		echo "You can closely view ICA-FIX QC report by opening the scene file by wb_view at $Subject/QC/Function/ICA-FIX_QC.scene <BR><BR>"  >> $reporthtml
 		fi
 
@@ -768,6 +770,7 @@ if [[ $Func = ON ]] ; then
 	done
 
     fi    
+	echo "</BODY></HTML>" >>  $reporthtml
 
 fi
 
@@ -790,11 +793,11 @@ if [[ $Fieldmap = ON && -e $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAn
 	touch $reporthtml
 	
 	echo "<HTML><HEAD><link REL=\"stylesheet\" TYPE=\"text/css\" href=\".files/fsl.css\"><TITLE>HCPPIPE QC REPORT</TITLE><link rel="icon" type="image/x-icon" href=".files/favicon.ico"></HEAD><BODY BGCOLOR=\"#FFFFFF\" TEXT=\"#151515\">" >> $reporthtml
-	echo "<hr><img src=.files/logo.png style=\"border:none; width:120px;height:50px;float:right;\"><img src=.files/bmb.png style=\"border:none; width:180px;height:50px;float:right;\"><img src=.files/hcplogo1.jpg style=\"border:none; width:150px;height:50px;float:right;\"><img src=.files/fsl-logo-x2.png style=\"border:none; width:80px;height:50px;float:right;\"><img src=.files/freesurfer.png style=\"border:none; width:100px;height:50px;float:right;\"><B>HCPPIPE QC REPORT</B><BR>" >> $reporthtml
+	echo "<hr><img src=\".files/logo.png\"style=\"border:none; width:120px;height:50px;float:right;\"><img src=\".files/bmb.png\" style=\"border:none; width:180px;height:50px;float:right;\"><img src=\".files/hcplogo1.jpg\" style=\"border:none; width:150px;height:50px;float:right;\"><img src=\".files/fsl-logo-x2.png\" style=\"border:none; width:80px;height:50px;float:right;\"><img src=\".files/freesurfer.png\" style=\"border:none; width:100px;height:50px;float:right;\"><B>HCPPIPE QC REPORT</B><BR>" >> $reporthtml
 
 	echo "<I>Fieldmap</I><BR>" >>  $reporthtml
-	echo "<FONT size=1>Version $VERSION &copy;2006-2022 RIKEN BCIL</FONT><BR><BR>"  >> $reporthtml
-	echo "<Font size=2>Output directory:$WD</FONT><BR><hr>"  >> $reporthtml
+	echo "<FONT size=\"1\">Version $VERSION &copy;2006-2022 RIKEN BCIL</FONT><BR><BR>"  >> $reporthtml
+	echo "<Font size=\"2\">Output directory:$WD</FONT><BR><hr>"  >> $reporthtml
 
 	FieldMapDir=$StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAndReg/FieldMap
  
@@ -804,7 +807,7 @@ if [[ $Fieldmap = ON && -e $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAn
 	rm ${WD}/MagT1w_acpc.png
 		
 	echo "<I>Magnitude and T1w_acpc</I><BR>"  >> $reporthtml
-	echo "<IMG src=./report/MagT1w_acpc.gif  width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+	echo "<IMG src=\"./report/MagT1w_acpc.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 
  	echo -e "FSL FLIRT mincost\n$(flirt -in ${FieldMapDir}/../Magnitude_brain_warppedT1w.nii.gz -ref ${FieldMapDir}/../T1w_acpc.nii.gz  -schedule ${FSLDIR}/etc/flirtsch/measurecost1.sch -init ${FieldMapDir}/../Fieldmap2T1w_acpc.mat | head -1 | awk '{print $1}')" > $WD/Mag2T1w.mincost1.csv
 	cat $WD/Mag2T1w.mincost1.csv | awk -F, '{ for (i=1; i<=NF; i++)  { a[NR,i] = $i } } NF>p { p = NF }END {for(j=1; j<=p; j++) { str=a[1,j]; for(i=2; i<=NR; i++){ str=str"\t"a[i,j]; } printf "%s\n", str}}' > $WD/Mag2T1w.mincost1.txt
@@ -839,7 +842,7 @@ if [[ $Fieldmap = ON && -e $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAn
 			rm ${WD}/PhaseOne${dc}_hires.png ${WD}/PhaseTwo${dc}_hires.png
 			imrm ${WD}/PhaseOne${dc}_vol0.nii.gz ${WD}/PhaseTwo${dc}_vol0.nii.gz ${WD}/PhaseOne${dc}_hires.nii.gz
 			echo "<I>PhaseOne${dc} and PhaseTwo${dc}</I><BR>"  >> $reporthtml
-			echo "<IMG src=./report/PhaseOnevsTwo${dc}.gif  width=${WIDTH} border=0><BR><BR>" >> $reporthtml
+			echo "<IMG src=\"./report/PhaseOnevsTwo${dc}.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
 		done
 		
 		# Topup fieldmap
@@ -877,7 +880,7 @@ if [[ $Fieldmap = ON && -e $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAn
 #	rm $WD/fmapgradvec[0-2]+T1w_acpc.png
 
 	echo "<I>${FMtype} fieldmap and gradient vectors overlaid on T1w_acpc </I><BR>"  >> $reporthtml
-	echo "<IMG src= "./report/FieldmapQC_1.png" width=${WIDTH} border="0"><BR><BR>" >> $reporthtml
+	echo "<IMG src= "./report/FieldmapQC_1.png" width=\"${WIDTH}\" border="0"><BR><BR>" >> $reporthtml
 
 	wc=$(cat ${WD}/qc.tsv | wc -l)
 	echo "<I>$(cat ${WD}/qc.tsv | head -1)</I><BR>"  >> $reporthtml
@@ -890,6 +893,7 @@ if [[ $Fieldmap = ON && -e $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAn
 		echo "</tr>"  >> $reporthtml 
 	done
 	echo "</table>"  >> $reporthtml 
+	echo "</BODY></HTML>" >>  $reporthtml
 
 fi
 
