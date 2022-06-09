@@ -212,7 +212,7 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 
 			if [[ ! $Image =~ restore ]] ; then 
 				echo "Stats for $Image"
-				echo "brainmask_fs_MEAN" > $StudyFolder/$Subject/QC/Structure/brainmask_fs_mean_col1.txt				
+				echo "brainmask_fs_MEAN" > $StudyFolder/$Subject/QC/Structure/brainmask_fs_mean_col1.txt		T1wMulT2w_hires		
 				${CARET7DIR}/wb_command -volume-stats "$T1wFolder"/"$Image".nii.gz -reduce MEAN -roi "$T1wFolder"/brainmask_fs.nii.gz | sed "s/${TAB}/${LF}/g" > $StudyFolder/$Subject/QC/Structure/brainmask_fs_mean_col2.txt
 				echo "brainmask_fs_VARIANCE" > $StudyFolder/$Subject/QC/Structure/brainmask_fs_var_col1.txt
 				${CARET7DIR}/wb_command -volume-stats "$T1wFolder"/"$Image".nii.gz -reduce VARIANCE -roi "$T1wFolder"/brainmask_fs.nii.gz > $StudyFolder/$Subject/QC/Structure/brainmask_fs_var_col2.txt
@@ -317,16 +317,22 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 		FSSubjecDir=${Subject}
 	fi
 
-	${FSLDIR}/bin/slicer $StudyFolder/$Subject/T1w/${FSSubjecDir}/mri/T1wMulT2w_hires.nii.gz -s 2 -a $OutputFolder/Structure/report/sqrtT1wbyT2w_FS.png
-	convert $OutputFolder/Structure/report/sqrtT1wbyT2w_FS.png $OutputFolder/Structure/report/sqrtT1wbyT2w_FS.gif
-	rm $OutputFolder/Structure/report/sqrtT1wbyT2w_FS.png
+	if [ -e $StudyFolder/$Subject/T1w/${FSSubjecDir}/mri/T1wMulT2w_hires.nii.gz ] ; then 
+		${FSLDIR}/bin/slicer $StudyFolder/$Subject/T1w/${FSSubjecDir}/mri/T1wMulT2w_hires.nii.gz -s 2 -a $OutputFolder/Structure/report/sqrtT1wbyT2w_FS.png
+		convert $OutputFolder/Structure/report/sqrtT1wbyT2w_FS.png $OutputFolder/Structure/report/sqrtT1wbyT2w_FS.gif
+		rm $OutputFolder/Structure/report/sqrtT1wbyT2w_FS.png
 	
-	echo "<I>sqrtT1wbyT2w</I><BR>"  >> $reporthtml
-	echo "Please check T1w and T2w images are well aligned together after FSL BBR and FreeSurferBBR. If the image of 'Square root of T1w multiplied by T2w' shows curved lines between Gm/WM boundaries, the T1w and T2w images may not be well alighed. Also please find the BBR cost is reasonably small. In most cases of successful registraion, the values of FS BBR cost may be less than 0.3. <BR>" >> $reporthtml
-	echo "Result of FSL BBR<BR>" >> $reporthtml
-	echo "<IMG src=\"./report/sqrtT1wbyT2w_FSL.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
-	echo "Result of FreeSurfer BBR<BR>" >> $reporthtml
-	echo "<IMG src=\"./report/sqrtT1wbyT2w_FS.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
+		echo "<I>sqrtT1wbyT2w</I><BR>"  >> $reporthtml
+		echo "Please check T1w and T2w images are well aligned together after FSL BBR and FreeSurferBBR. If the image of 'Square root of T1w multiplied by T2w' shows curved lines between Gm/WM boundaries, the T1w and T2w images may not be well alighed. Also please find the BBR cost is reasonably small. In most cases of successful registraion, the values of FS BBR cost may be less than 0.3. <BR>" >> $reporthtml
+		echo "Result of FSL BBR<BR>" >> $reporthtml
+		echo "<IMG src=\"./report/sqrtT1wbyT2w_FSL.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
+		echo "Result of FreeSurfer BBR<BR>" >> $reporthtml
+		echo "<IMG src=\"./report/sqrtT1wbyT2w_FS.gif\"  width=\"${WIDTH}\" border=\"0\"><BR><BR>" >> $reporthtml
+	else
+		echo "<I>sqrtT1wbyT2w</I><BR>"  >> $reporthtml
+		echo "Not found T2w image <BR><BR>" >> $reporthtml
+	fi
+
 
 	if [ -e $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAndReg ] ; then	
 		echo -e "FSL_BBR_mincost\n$(flirt -in $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAndReg/T2w_acpc.nii.gz -ref $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAndReg/T1w_acpc.nii.gz -schedule $FSLDIR/etc/flirtsch/measurecost1.sch -init  $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAndReg/T2w2T1w/T2w_reg.mat -wmseg  $StudyFolder/$Subject/T2w/T2wToT1wDistortionCorrectAndReg/T2w2T1w/T2w_reg_fast_wmseg.nii.gz -cost bbr | head -1 | awk '{print $1}')" > $OutputFolder/Structure/T2wToT1w.mincost1.csv
@@ -409,38 +415,60 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 	fi
 	
 	for Map in MyelinMap MyelinMap_BC thickness ; do
-		${CARET7DIR}/wb_command -cifti-parcellate $StudyFolder/$Subject/MNINonLinear/fsaverage_LR32k/${Subject}.${Map}${Reg}.32k_fs_LR.dscalar.nii $LABEL COLUMN  $StudyFolder/$Subject/MNINonLinear/fsaverage_LR32k/${Subject}.${Map}${Reg}.32k_fs_LR.pscalar.nii
-		${CARET7DIR}/wb_command -cifti-convert -to-nifti $StudyFolder/$Subject/MNINonLinear/fsaverage_LR32k/${Subject}.${Map}${Reg}.32k_fs_LR.pscalar.nii $StudyFolder/$Subject/MNINonLinear/fsaverage_LR32k/${Subject}.${Map}${Reg}.32k_fs_LR.nii.gz
-		${CARET7DIR}/wb_command -cifti-parcellate $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.${Map}_MSMAll.32k_fs_LR.dscalar.nii $LABEL COLUMN $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.${Map}_MSMAll.32k_fs_LR.pscalar.nii
-		${CARET7DIR}/wb_command -cifti-convert -to-nifti $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.${Map}_MSMAll.32k_fs_LR.pscalar.nii $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.${Map}_MSMAll.32k_fs_LR.nii.gz
-		Similarity=$(fslcc -p 3 $StudyFolder/$Subject/MNINonLinear/fsaverage_LR32k/${Subject}.${Map}${Reg}.32k_fs_LR.nii.gz $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.${Map}_MSMAll.32k_fs_LR.nii.gz | awk '{printf "%1.3f",$3}')
-		echo $Similarity | awk '{printf "'$Map' similarity\t%1.3f\n",$1}' >>  $OutputFolder/Structure/SurfaceStats.tsv
-		echo "$Map similarity: $Similarity <BR>" >> $reporthtml
-		rm $StudyFolder/$Subject/MNINonLinear/fsaverage_LR32k/${Subject}.${Map}${Reg}.32k_fs_LR.nii.gz $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.${Map}_MSMAll.32k_fs_LR.nii.gz
+		if [ -e $StudyFolder/$Subject/MNINonLinear/fsaverage_LR32k/${Subject}.${Map}${Reg}.32k_fs_LR.dscalar.nii ] ; then
+			${CARET7DIR}/wb_command -cifti-parcellate $StudyFolder/$Subject/MNINonLinear/fsaverage_LR32k/${Subject}.${Map}${Reg}.32k_fs_LR.dscalar.nii $LABEL COLUMN  $StudyFolder/$Subject/MNINonLinear/fsaverage_LR32k/${Subject}.${Map}${Reg}.32k_fs_LR.pscalar.nii
+			${CARET7DIR}/wb_command -cifti-convert -to-nifti $StudyFolder/$Subject/MNINonLinear/fsaverage_LR32k/${Subject}.${Map}${Reg}.32k_fs_LR.pscalar.nii $StudyFolder/$Subject/MNINonLinear/fsaverage_LR32k/${Subject}.${Map}${Reg}.32k_fs_LR.nii.gz
+			${CARET7DIR}/wb_command -cifti-parcellate $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.${Map}_MSMAll.32k_fs_LR.dscalar.nii $LABEL COLUMN $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.${Map}_MSMAll.32k_fs_LR.pscalar.nii
+			${CARET7DIR}/wb_command -cifti-convert -to-nifti $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.${Map}_MSMAll.32k_fs_LR.pscalar.nii $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.${Map}_MSMAll.32k_fs_LR.nii.gz
+			Similarity=$(fslcc -p 3 $StudyFolder/$Subject/MNINonLinear/fsaverage_LR32k/${Subject}.${Map}${Reg}.32k_fs_LR.nii.gz $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.${Map}_MSMAll.32k_fs_LR.nii.gz | awk '{printf "%1.3f",$3}')
+			echo $Similarity | awk '{printf "'$Map' similarity\t%1.3f\n",$1}' >>  $OutputFolder/Structure/SurfaceStats.tsv
+			echo "$Map similarity: $Similarity <BR>" >> $reporthtml
+			rm $StudyFolder/$Subject/MNINonLinear/fsaverage_LR32k/${Subject}.${Map}${Reg}.32k_fs_LR.nii.gz $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.${Map}_MSMAll.32k_fs_LR.nii.gz
+		fi
 	done
 
 	echo "<BR>" >> $reporthtml
 
 	# robust z-score for Myelin_BC
-	Myelin=$StudyFolder/$Subject/MNINonLinear/${Subject}.MyelinMap_BC${Reg}.164k_fs_LR.dscalar.nii 
-	${CARET7DIR}/wb_command -cifti-math '(sub-Q2)/((Q3-Q1)*0.7413)' $OutputFolder/Structure/${Subject}.MyelinMap_BC_z-score.164k_fs_LR.dscalar.nii -var sub $Myelin -var Q1 $MyelinQ1to3 -select 1 1  -var Q2 $MyelinQ1to3 -select 1 2 -var Q3 $MyelinQ1to3 -select 1 3	
+	if [ -e $StudyFolder/$Subject/MNINonLinear/${Subject}.MyelinMap_BC${Reg}.164k_fs_LR.dscalar.nii ] ; then 
+		Myelin=$StudyFolder/$Subject/MNINonLinear/${Subject}.MyelinMap_BC${Reg}.164k_fs_LR.dscalar.nii 
+		${CARET7DIR}/wb_command -cifti-math '(sub-Q2)/((Q3-Q1)*0.7413)' $OutputFolder/Structure/${Subject}.MyelinMap_BC_z-score.164k_fs_LR.dscalar.nii -var sub $Myelin -var Q1 $MyelinQ1to3 -select 1 1  -var Q2 $MyelinQ1to3 -select 1 2 -var Q3 $MyelinQ1to3 -select 1 3	
+	fi
 	# robust z-score for thickness
 	Thickness=$StudyFolder/$Subject/MNINonLinear/${Subject}.thickness${Reg}.164k_fs_LR.dscalar.nii
 	${CARET7DIR}/wb_command -cifti-math '(sub-Q2)/((Q3-Q1)*0.7413)' $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii -var sub $Thickness -var Q1 $ThicknessQ1to3 -select 1 1 -var Q2 $ThicknessQ1to3 -select 1 2 -var Q3 $ThicknessQ1to3 -select 1 3
 
 	# Surface defect map and score
-	${CARET7DIR}/wb_command -cifti-math '(abs(A)>3)*(abs(B)>3)' $OutputFolder/Structure/SurfaceDefect3.dscalar.nii -var A $OutputFolder/Structure/${Subject}.MyelinMap_BC_z-score.164k_fs_LR.dscalar.nii -var B $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii
-	${CARET7DIR}/wb_command -cifti-math '(abs(A)>4)*(abs(B)>4)' $OutputFolder/Structure/SurfaceDefect4.dscalar.nii -var A $OutputFolder/Structure/${Subject}.MyelinMap_BC_z-score.164k_fs_LR.dscalar.nii -var B $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii
-	${CARET7DIR}/wb_command -cifti-math '(abs(A)>5)*(abs(B)>5)' $OutputFolder/Structure/SurfaceDefect5.dscalar.nii -var A $OutputFolder/Structure/${Subject}.MyelinMap_BC_z-score.164k_fs_LR.dscalar.nii -var B $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii
-	${CARET7DIR}/wb_command -cifti-math '(abs(A)>6)*(abs(B)>6)' $OutputFolder/Structure/SurfaceDefect6.dscalar.nii -var A $OutputFolder/Structure/${Subject}.MyelinMap_BC_z-score.164k_fs_LR.dscalar.nii -var B $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii
-	${CARET7DIR}/wb_command -cifti-math '(abs(A)>7)*(abs(B)>7)' $OutputFolder/Structure/SurfaceDefect7.dscalar.nii -var A $OutputFolder/Structure/${Subject}.MyelinMap_BC_z-score.164k_fs_LR.dscalar.nii -var B $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii
+	if [ -e $StudyFolder/$Subject/MNINonLinear/${Subject}.MyelinMap_BC${Reg}.164k_fs_LR.dscalar.nii ] ; then 
+		${CARET7DIR}/wb_command -cifti-math '(abs(A)>3)*(abs(B)>3)' $OutputFolder/Structure/SurfaceDefect3.dscalar.nii -var A $OutputFolder/Structure/${Subject}.MyelinMap_BC_z-score.164k_fs_LR.dscalar.nii -var B $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii
+		${CARET7DIR}/wb_command -cifti-math '(abs(A)>4)*(abs(B)>4)' $OutputFolder/Structure/SurfaceDefect4.dscalar.nii -var A $OutputFolder/Structure/${Subject}.MyelinMap_BC_z-score.164k_fs_LR.dscalar.nii -var B $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii
+		${CARET7DIR}/wb_command -cifti-math '(abs(A)>5)*(abs(B)>5)' $OutputFolder/Structure/SurfaceDefect5.dscalar.nii -var A $OutputFolder/Structure/${Subject}.MyelinMap_BC_z-score.164k_fs_LR.dscalar.nii -var B $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii
+		${CARET7DIR}/wb_command -cifti-math '(abs(A)>6)*(abs(B)>6)' $OutputFolder/Structure/SurfaceDefect6.dscalar.nii -var A $OutputFolder/Structure/${Subject}.MyelinMap_BC_z-score.164k_fs_LR.dscalar.nii -var B $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii
+		${CARET7DIR}/wb_command -cifti-math '(abs(A)>7)*(abs(B)>7)' $OutputFolder/Structure/SurfaceDefect7.dscalar.nii -var A $OutputFolder/Structure/${Subject}.MyelinMap_BC_z-score.164k_fs_LR.dscalar.nii -var B $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii
+	else
+		${CARET7DIR}/wb_command -cifti-math '(abs(A)>3)' $OutputFolder/Structure/SurfaceDefect3.dscalar.nii -var A $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii
+		${CARET7DIR}/wb_command -cifti-math '(abs(A)>4)' $OutputFolder/Structure/SurfaceDefect4.dscalar.nii -var A $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii
+		${CARET7DIR}/wb_command -cifti-math '(abs(A)>5)' $OutputFolder/Structure/SurfaceDefect5.dscalar.nii -var A $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii
+		${CARET7DIR}/wb_command -cifti-math '(abs(A)>6)' $OutputFolder/Structure/SurfaceDefect6.dscalar.nii -var A $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii
+		${CARET7DIR}/wb_command -cifti-math '(abs(A)>7)' $OutputFolder/Structure/SurfaceDefect7.dscalar.nii -var A $OutputFolder/Structure/${Subject}.thickness_z-score.164k_fs_LR.dscalar.nii	
+	fi
 	
 	${CARET7DIR}/wb_command -cifti-merge $OutputFolder/Structure/SurfaceDefect.164k_fs_LR.dscalar.nii -cifti $OutputFolder/Structure/SurfaceDefect3.dscalar.nii -cifti $OutputFolder/Structure/SurfaceDefect4.dscalar.nii -cifti $OutputFolder/Structure/SurfaceDefect5.dscalar.nii -cifti $OutputFolder/Structure/SurfaceDefect6.dscalar.nii -cifti $OutputFolder/Structure/SurfaceDefect7.dscalar.nii
-	echo "Surface Defect (MyelinMap_BC & thickness|z|>3)" > $OutputFolder/Structure/SurfaceDefect.txt
-	echo "Surface Defect (MyelinMap_BC & thickness|z|>4)" >> $OutputFolder/Structure/SurfaceDefect.txt
-	echo "Surface Defect (MyelinMap_BC & thickness|z|>5)" >> $OutputFolder/Structure/SurfaceDefect.txt
-	echo "Surface Defect (MyelinMap_BC & thickness|z|>6)" >> $OutputFolder/Structure/SurfaceDefect.txt
-	echo "Surface Defect (MyelinMap_BC & thickness|z|>7)" >> $OutputFolder/Structure/SurfaceDefect.txt
+
+	if [ -e $StudyFolder/$Subject/MNINonLinear/${Subject}.MyelinMap_BC${Reg}.164k_fs_LR.dscalar.nii ] ; then 
+		echo "Surface Defect (MyelinMap_BC & thickness|z|>3)" > $OutputFolder/Structure/SurfaceDefect.txt
+		echo "Surface Defect (MyelinMap_BC & thickness|z|>4)" >> $OutputFolder/Structure/SurfaceDefect.txt
+		echo "Surface Defect (MyelinMap_BC & thickness|z|>5)" >> $OutputFolder/Structure/SurfaceDefect.txt
+		echo "Surface Defect (MyelinMap_BC & thickness|z|>6)" >> $OutputFolder/Structure/SurfaceDefect.txt
+		echo "Surface Defect (MyelinMap_BC & thickness|z|>7)" >> $OutputFolder/Structure/SurfaceDefect.txt
+	else
+		echo "Surface Defect (thickness|z|>3)" > $OutputFolder/Structure/SurfaceDefect.txt
+		echo "Surface Defect (thickness|z|>4)" >> $OutputFolder/Structure/SurfaceDefect.txt
+		echo "Surface Defect (thickness|z|>5)" >> $OutputFolder/Structure/SurfaceDefect.txt
+		echo "Surface Defect (thickness|z|>6)" >> $OutputFolder/Structure/SurfaceDefect.txt
+		echo "Surface Defect (thickness|z|>7)" >> $OutputFolder/Structure/SurfaceDefect.txt
+	fi
+		
 	${CARET7DIR}/wb_command -set-map-names $OutputFolder/Structure/SurfaceDefect.164k_fs_LR.dscalar.nii -name-file $OutputFolder/Structure/SurfaceDefect.txt
 
 	i=3
