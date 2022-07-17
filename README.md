@@ -1,9 +1,6 @@
 # BCIL
 Brain Connectomics Imaging Libraries
 
-
-=======
-
 ## Installation
 1. Donwload zip file and unzip the file
 2. Configure the setting file ([unzipped directory]/bcilconf/settings.sh) for your environments
