@@ -1,10 +1,6 @@
 # BCIL
 Brain Connectomics Imaging Libraries
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 23702871d92580503c0c16556f2e7a8acafc40e9
 ## Installation
 1. Donwload zip file and unzip the file
 2. Configure the setting file ([unzipped directory]/bcilconf/settings.sh) for your environments
@@ -24,7 +20,4 @@ export PATH=[unzipped directory]/bin:$PATH
 ```
 4. Run commands in the directory, [unzipped directory]/bin
 
-<<<<<<< HEAD
-=======
 
->>>>>>> 23702871d92580503c0c16556f2e7a8acafc40e9
