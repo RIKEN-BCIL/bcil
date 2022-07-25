@@ -272,8 +272,23 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 		size=($(identify -format '%w %h' $OutputFolder/Structure/report/T1wmulT2w_brain_norm_modulate_mask.gif))
 		dsize=($(echo ${size[@]} | awk '{printf "%d %d",$1*2,$2*2}'))
 		echo "<div class=\"magnifier\" style=\"width: ${size[0]}px;height:${size[1]}px\"><div class=\"maglens\" style=\"width:240px; height:150px\"><img src=\"./report/T1wmulT2w_brain_norm_modulate_mask.gif\" class=\"maglarge\" style=\"width:${dsize[0]}px;height:${dsize[1]}px\"/></div></div><BR>" >> $reporthtml
-		${FSLDIR}/bin/fslmaths $StudyFolder/$Subject/T1w//BiasField_acpc_dc.nii.gz -thr 1 $OutputFolder/Structure/report/BiasField_thr1
-		${FSLDIR}/bin/fslmaths $StudyFolder/$Subject/T1w//BiasField_acpc_dc.nii.gz -uthr 1 $OutputFolder/Structure/report/BiasField_uthr1		
+		val=$(echo "scale=2; $(${FSLDIR}/bin/fslstats $StudyFolder/$Subject/T1w/BiasFieldCorrection_sqrtT1wXT2w/T1wmulT2w_brain_norm_modulate_mask.nii.gz -V | awk '{print $1}')/$(${FSLDIR}/bin/fslstats $StudyFolder/$Subject/T1w/BiasFieldCorrection_sqrtT1wXT2w/T1wmulT2w_brain.nii.gz -V | awk '{print $1}')" | bc -l)
+		echo -e "T1wmulT2w_brain_norm_modulate mask ratio\t$val\n" > $OutputFolder/Structure/T1wmulT2w_brain_norm_modulate_stats.tsv
+		wc=$(cat $OutputFolder/Structure/T1wmulT2w_brain_norm_modulate_stats.tsv | wc -l)
+		echo "<table>"  >> $reporthtml 
+		for i in `seq 1 $wc`; do
+			echo "<tr>"  >> $reporthtml
+			NumField=$(cat $OutputFolder/Structure/T1wmulT2w_brain_norm_modulate_stats.tsv | awk -F "\t" 'NR=='$i' {print NF}')
+			for j in $(seq 1 $NumField) ; do
+				var=$(cat $OutputFolder/Structure/T1wmulT2w_brain_norm_modulate_stats.tsv | awk -F "\t" 'NR=='$i' {print $'$j'}')
+				echo "<td>$var</td>" >> $reporthtml 
+			done
+			echo "</tr>"  >> $reporthtml
+		done
+		echo "</table><BR><BR>"  >> $reporthtml
+		
+		${FSLDIR}/bin/fslmaths $StudyFolder/$Subject/T1w/BiasField_acpc_dc.nii.gz -thr 1 $OutputFolder/Structure/report/BiasField_thr1
+		${FSLDIR}/bin/fslmaths $StudyFolder/$Subject/T1w/BiasField_acpc_dc.nii.gz -uthr 1 $OutputFolder/Structure/report/BiasField_uthr1		
 		${FSLDIR}/bin/overlay 1 0 $StudyFolder/$Subject/T1w/T1w_acpc_dc_restore.nii.gz -a $OutputFolder/Structure/report/BiasField_thr1.nii.gz 1 1.2 $OutputFolder/Structure/report/BiasField_uthr1.nii.gz 0.8 1 $OutputFolder/Structure/report/BiasFieldOverlay.nii.gz
 		${FSLDIR}/bin/slicer $OutputFolder/Structure/report/BiasFieldOverlay.nii.gz -S 7 1800 $OutputFolder/Structure/report/BiasFieldOverlay.png
 		convert $OutputFolder/Structure/report/BiasFieldOverlay.png $OutputFolder/Structure/report/BiasFieldOverlay.gif
@@ -284,6 +299,20 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 		size=($(identify -format '%w %h' $OutputFolder/Structure/report/BiasFieldOverlay.gif))
 		dsize=($(echo ${size[@]} | awk '{printf "%d %d",$1*2,$2*2}'))
 		echo "<div class=\"magnifier\" style=\"width: ${size[0]}px;height:${size[1]}px\"><div class=\"maglens\" style=\"width:240px; height:150px\"><img src=\"./report/BiasFieldOverlay.gif\" class=\"maglarge\" style=\"width:${dsize[0]}px;height:${dsize[1]}px\"/></div></div><BR>" >> $reporthtml
+
+		${FSLDIR}/bin/fslstats $StudyFolder/$Subject/T1w/BiasField_acpc_dc.nii.gz -k $StudyFolder/$Subject/T1w/T1w_acpc_dc_brain -R -p 25 -p 50 -p 75 | awk '{printf "Min\t%s\nQ2\t%s\nQ3\t%s\nQ4\t%s\nMax\t%s\n",$1,$3,$4,$5,$2}' > $OutputFolder/Structure/BiasField_acpc_dc_stats.tsv
+		wc=$(cat $OutputFolder/Structure/BiasField_acpc_dc_stats.tsv | wc -l)
+		echo "<table>"  >> $reporthtml 
+		for i in `seq 1 $wc`; do
+			echo "<tr>"  >> $reporthtml
+			NumField=$(cat $OutputFolder/Structure/BiasField_acpc_dc_stats.tsv | awk -F "\t" 'NR=='$i' {print NF}')
+			for j in $(seq 1 $NumField) ; do
+				var=$(cat $OutputFolder/Structure/BiasField_acpc_dc_stats.tsv | awk -F "\t" 'NR=='$i' {print $'$j'}')
+				echo "<td>$var</td>" >> $reporthtml 
+			done
+			echo "</tr>"  >> $reporthtml
+		done
+		echo "</table>"  >> $reporthtml
 	fi
 	
 	# Create structural QC scenes
@@ -776,12 +805,13 @@ fi
 if [[ $ICAFIX = ON ]] ; then
 
 Tasklist=$(for i in $StudyFolder/$Subject/MNINonLinear/Results/*/*.ica/filtered_func_data.ica/melodic_oIC.nii.gz; do basename $(dirname $(echo ${i%%.ica*})); done)
+TaskList=$(for i in  $Tasklist; do if [ -e $StudyFolder/$Subject/MNINonLinear/Results/$i/${i}_hp*.ica/filtered_func_data.ica/melodic_oIC.dscalar.nii ] ; then echo $i; fi; done)
 
-for rfmri in $Tasklist ; do
+for rfmri in $TaskList ; do
 
 	WD=$StudyFolder/$Subject/MNINonLinear/Results/${rfmri}
 	hps=$(for i in ${WD}/${rfmri}_hp*.ica; do j=${i##*/}; k=${j##*_hp}; hp=${k%%.ica}; echo $hp; done)
-	for hp in $hps; do
+    for hp in $hps; do
 
 	echo ""
 	echo "Creating report for ${rfmri}_hp${hp}.ica"
@@ -940,7 +970,7 @@ EOF
 
 	${CARET7DIR}/wb_command -scene-file-relocate $WD/${Subject}_${rfmri}_ICA_Classification_singlescreen.scene $StudyFolder/$Subject/QC/ICA-FIX/${rfmri}_hp${hp}_QC.scene
 
-	done
+    done
 done
 
 echo ""
