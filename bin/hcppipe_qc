@@ -366,7 +366,7 @@ if [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/nul
 			convert $OutputFolder/Structure/report/sqrtT1wbyT2w_FSL.png $OutputFolder/Structure/report/sqrtT1wbyT2w_FSL.gif
 			rm $OutputFolder/Structure/report/sqrtT1wbyT2w_FSL.png
 		fi
-	elif [ -e  $StudyFolder/$Subject/T2w/T2wToT1wReg/T2w2T1w  ] ; then
+	elif [ -e  $StudyFolder/$Subject/T2w/T2wToT1wReg ] ; then
 		${FSLDIR}/bin/fslmaths $StudyFolder/$Subject/T1w/T1w_acpc.nii.gz -mul $StudyFolder/$Subject/T2w/T2wToT1wReg/T2w2T1w.nii.gz -sqrt $StudyFolder/$Subject/T2w/T2wToT1wReg/sqrtT1wbyT2w.nii.gz
 		${FSLDIR}/bin/slicer $StudyFolder/$Subject/T2w/T2wToT1wReg/sqrtT1wbyT2w.nii.gz -s 2 -a $OutputFolder/Structure/report/sqrtT1wbyT2w_FSL.png
 		convert $OutputFolder/Structure/report/sqrtT1wbyT2w_FSL.png $OutputFolder/Structure/report/sqrtT1wbyT2w_FSL.gif
