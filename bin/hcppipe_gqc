@@ -1,0 +1,493 @@
+#! /bin/bash
+
+# Create group QC report
+
+set -e
+
+VERSION=0.1
+
+BCILDIR=$(cd $(dirname $0); cd ..; pwd)
+source $BCILDIR/bcilconf/settings.sh
+
+# Usage
+Usage () {
+echo ""
+echo " Usage: hcppipe_gqc <Data Folder> <Protocol1 Folder> <Protocol1_Subj1>@..@<Protocol1_SubjI> .. <ProtocolN Folder> <ProtocolN_Subj1>@..@<ProtocolN_SubjJ>"
+echo ""
+echo " Example:"
+echo ""
+echo "   hcppipe_gqc /mnt/data HARP HARP_Subj1@HARP_Subj2 CRHD CRHD_Subj1@CCRHD_Subj2 UKB UKB_Subj@UKB_Subj2 "
+echo ""
+echo " , where folder structure should be <Group>/<Protocols>/<Subjs> as follows:"
+echo ""
+echo "   /mnt/data"
+echo "    ├── HARP"
+echo "    │   ├── HARP_Subj1"
+echo "    │   └── HARP_Subj2"
+echo "    ├── CRHD"
+echo "    │   ├── CRHD_Subj1"
+echo "    │   └── CRHD_Subj2"
+echo "    └── UKB"
+echo "        ├── UKB_Subj1"
+echo "        └── UKB_Subj2"
+echo ""
+echo " Optional arguments:"
+echo "  -o <output folder name> : default is 'QA' in <Study Folder>" 
+echo ""
+echo " You need to have all the subject folders in the same <Study Folder>, so that the QC"
+echo " data and output report html pages can be linked to the subjects' QA folders. You may"
+echo " want to create soft links of subjects' folders in customly created <Study Folder>."
+echo ""
+exit 1;
+}
+[[ $3 = "" ]] && Usage
+ 
+GroupStudyFolder="$1"
+shift
+ProtocolsList=""
+SubjectsList=""
+while [[ $2 != "" ]] ; do
+	ProtocolsList+=" $1"
+	SubjectsList+=" $2"
+	shift 2;
+done
+
+OutputFolder=$GroupStudyFolder/QC
+if [[ $4 = -o ]] ; then
+	OutputFolder="$GroupStudyFolder/$5"
+fi
+
+echo "GroupStudyFolder:  $GroupStudyFolder"
+echo "SubjectsList:  $SubjectsList"
+echo "ProtocolsList:  $ProtocolsList"
+echo "OutputFolder:  $OutputFolder"
+
+if [[ $(echo $ProtocolsList | awk '{print NF}') != $(echo $SubjectsList | awk '{print NF}') ]] ; then
+	echo "ERROR: number of ProtocolList is not same as number of protocols separated by SubjectsLIst"
+	exit 1;
+fi
+
+mkdir -p $OutputFolder/report
+mkdir -p $OutputFolder/.files
+mkdir -p $OutputFolder/logs
+echo "$(date -R) - $0 $@" >> $OutputFolder/logs/commands.log
+
+# copy jss files
+cp ${FSLDIR}/doc/fsl.css ${BCILDIR}/doc/images/BCIL_1.png ${BCILDIR}/doc/images/fsl-logo-x2.png ${BCILDIR}/doc/images/hcplogo1.jpg ${BCILDIR}/doc/images/freesurfer.png ${BCILDIR}/doc/images/bmb.png ${BCILDIR}/doc/images/favicon.ico ${BCILDIR}/doc/hcppipe_qc/magnifier.css ${BCILDIR}/doc/hcppipe_qc/magnifier.js ${BCILDIR}/doc/hcppipe_qc/jquery.min.js ${BCILDIR}/doc/hcppipe_qc/lightbox.css ${BCILDIR}/doc/hcppipe_qc/lightbox.min.js $OutputFolder/.files/
+
+# Create index html
+
+cat << EOF > $OutputFolder/index.html
+<HTML>
+ <HEAD>
+   <link REL="stylesheet" TYPE="text/css" href=".files/fsl.css">
+   <TITLE>HCPPIPE GROUP QC REPORT</TITLE>
+   <link rel="icon" type="image/x-icon" href=".files/favicon.ico">
+   <style type="text/css">
+    .button {
+      display       : inline-block;
+      border-radius : 20%;     
+      font-size     : 8pt;    
+      text-align    : center; 
+      cursor        : pointer;
+      padding       : 6px;
+      background    : #ccc;
+      color         : #000000;
+      line-height   : 1em;    
+      transition    : .3s;
+      border: solid 1px;
+      text-decoration: none;
+      margin: 0px 10px;
+    }
+    .button.disabled {
+      display       : inline-block;
+      border-radius : 20%;     
+      font-size     : 8pt;    
+      text-align    : center; 
+      cursor        : pointer;
+      padding       : 6px;
+      background    : #ccc;
+      color         : #808B96;
+      line-height   : 1em;    
+      transition    : .3s;
+      border: solid 1px;
+      text-decoration: none;
+      margin: 0px 10px;
+    }
+    html, body{
+      overflow: hidden;
+    }
+  </style>
+  <link href=".files/lightbox.css" rel="stylesheet">
+  <script src=".files/jquery.min.js"></script>
+  <script src=".files/lightbox.min.js" type="text/javascript"></script>
+  <link type="text/css" href=".files/magnifier.css" rel="stylesheet">
+  <script type="text/javascript" src=".files/magnifier.js"></script>
+ </HEAD>
+ <BODY BGCOLOR="#FFFFFF" TEXT="#151515">
+  <hr>
+  <img src=".files/BCIL_1.png" style="border:none; width:125px;height:50px;float:right;">
+  <img src=".files/bmb.png" style="border:none; width:180px;height:50px;float:right;">
+  <img src=".files/hcplogo1.jpg" style="border:none; width:150px;height:50px;float:right;">
+  <img src=".files/fsl-logo-x2.png" style="border:none; width:80px;height:50px;float:right;">
+  <img src=".files/freesurfer.png" style="border:none; width:100px;height:50px;float:right;">
+  <B>HCPPIPE GROUP QC REPORT</B><BR>
+  <FONT size=1>Version 0.1 &copy;2006-2021</FONT><BR>
+  <Font size=2>Output directory: $OutputFolder </FONT><BR><BR>
+  <center>
+  <a target="targetframe" href="./report.html" class="button">Group QC Charts</a>
+  <select id="selectdata" NAME="select1" onChange="if(document.form1.select1.value){location.href=document.form1.select1.value;}">
+  <option value="">Individual study</option>
+EOF
+
+i=1;
+while [ $i -le $(echo $ProtocolsList | awk '{print NF}') ] ; do
+	Protocol=$(echo $ProtocolsList | cut -d ' ' -f $i)
+	echo "   <optgroup label=\"$Protocol\">" 
+	for Subjects in $(echo $SubjectsList | cut -d ' ' -f $i) ; do
+		for Subject in $(echo $Subjects | sed -e 's/@/ /g') ; do 
+			echo "   <option value=\"../$Protocol/${Subject}/QC/report.html\">${Subject}</option>"
+		done
+	done
+	echo "   </optgroup>"
+	i=$((i + 1))
+done >> $OutputFolder/index.html
+
+cat << EOF >> $OutputFolder/index.html
+   </select>
+   </form>
+  </center>
+  <iframe src="./report.html" frameborder="0" style="overflow:hidden; height:100%; width:100%" class="fullheight" id="targetframe" name="targetframe" scrolling="auto"></iframe>
+</BODY>
+ <script>
+ var select = document.getElementById('selectdata');
+ select.onchange = function () {
+　document.getElementById("targetframe").src = this.value;
+ }
+ </script>
+</HTML>
+EOF
+
+# Creating protocol and subject list file
+echo "Creating protocol and subject list"
+i=1;
+echo "Protocol	SubjID	Subject" > $GroupStudyFolder/QC/report/Protocol-Subjects-List.txt
+while [ $i -le $(echo $ProtocolsList | awk '{print NF}') ] ; do
+	Protocol=$(echo $ProtocolsList | cut -d ' ' -f $i)
+	for Subjects in $(echo $SubjectsList | cut -d ' ' -f $i) ; do
+		SubjID=1
+		for Subject in $(echo $Subjects | sed -e 's/@/ /g'); do 
+			SubjID=$($FSLDIR/bin/zeropad $SubjID 4)
+			echo "$Protocol	$SubjID	$Subject" >> $OutputFolder/report/Protocol-Subjects-List.txt
+			SubjID=$(expr $SubjID + 1)
+		done
+	done
+	i=$(expr $i + 1)
+done 
+
+
+# Create statistical quality control pages
+
+Struc=$(for i in $(cat $OutputFolder/report/Protocol-Subjects-List.txt | awk 'NR>1 {printf "%s/%s ",$1,$3}') ; do if [ -e $GroupStudyFolder/$i/QC/Structure/report.html ] ; then echo $i; fi; done)
+
+echo "Creating Structure report.html"
+# echo Struc: $Struc
+
+if [[ $Struc != "" ]] ; then
+
+	if [ -d $OutputFolder/Structure ] ; then rm -rf $OutputFolder/Structure ; fi
+	mkdir -p $OutputFolder/Structure/report
+	reporthtml=$OutputFolder/Structure/report.html
+
+cat << EOF > $reporthtml
+<HTML>
+ <HEAD>
+   <link REL="stylesheet" TYPE="text/css" href=".files/fsl.css">
+   <TITLE>HCPPIPE GROUP QC REPORT</TITLE>
+   <link rel="icon" type="image/x-icon" href=".files/favicon.ico">
+   <style type="text/css">
+    .button {
+      display       : inline-block;
+      border-radius : 20%;     
+      font-size     : 8pt;    
+      text-align    : center; 
+      cursor        : pointer;
+      padding       : 6px;
+      background    : #ccc;
+      color         : #000000;
+      line-height   : 1em;    
+      transition    : .3s;
+      border: solid 1px;
+      text-decoration: none;
+      margin: 0px 10px;
+    }
+    .button.disabled {
+      display       : inline-block;
+      border-radius : 20%;     
+      font-size     : 8pt;    
+      text-align    : center; 
+      cursor        : pointer;
+      padding       : 6px;
+      background    : #ccc;
+      color         : #808B96;
+      line-height   : 1em;    
+      transition    : .3s;
+      border: solid 1px;
+      text-decoration: none;
+      margin: 0px 10px;
+    }
+    html, body{
+      overflow: scroll;
+    }
+   .stripe { 
+      background-image: repeating-linear-gradient(
+      90deg,
+      #f0f0f0 0, #f0f0f0 1px,
+      #ffffff 1px, #ffffff 50px);
+    }
+  </style>
+  <link href=".files/lightbox.css" rel="stylesheet">
+  <script src=".files/jquery.min.js"></script>
+  <script src=".files/lightbox.min.js" type="text/javascript"></script>
+  <link type="text/css" href=".files/magnifier.css" rel="stylesheet">
+  <script type="text/javascript" src=".files/magnifier.js"></script>
+ </HEAD>
+ <BODY BGCOLOR="#FFFFFF" TEXT="#151515">
+  <div class="stripe">
+EOF
+
+	#for variableset in WholeBrain@@-x FSL_mincost@@-x FS_mincost@@-x SDS5@SurfaceStats.csv@-c; do
+	for varset in brainmask_fs_MEAN@T1w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T2w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T1wmulT2w_stats.tsv@2@-x brainmask_fs_MEAN@T1wDividedByT2w_stats.tsv@2@-x FSL_BBR_mincost@T2wToT1w.mincost.tsv@2@-x FreeSurfer_BBR_mincost@T2wToT1w.mincost.tsv@2@-x T1wmulT2w_brain_norm_modulate_mask_ratio@T1wmulT2w_brain_norm_modulate_stats.tsv@2@-x Q2@BiasField_acpc_dc_stats.tsv@2@-x IQR@BiasField_acpc_dc_stats.tsv@2@-x SDS5@SurfaceStats.tsv@2@-c MyelinMap_similarity@SurfaceStats.tsv@2@-x MyelinMap_BC_similarity@SurfaceStats.tsv@2@-x thickness_similarity@SurfaceStats.tsv@2@-x MSMSulc_areal_distortion_IQR@SurfaceStats.tsv@2@-x MSMAll_areal_distortion_IQR@SurfaceStats.tsv@2@-x; do
+
+		# Not used variable
+		# LEFT-CEREBRAL-CORTEX_MEAN@T1w_acpc_dc_stats.tsv@2@-x RIGHT-CEREBRAL-CORTEX_MEAN@T1w_acpc_dc_stats.tsv@2@-x LEFT-CEREBRAL-WHITE-MATTER_MEAN@T1w_acpc_dc_stats.tsv@2@-x RIGHT-CEREBRAL-WHITE-MATTER_MEAN@T1w_acpc_dc_stats.tsv@2@-x LEFT-LATERAL-VENTRICLE_MEAN@T1w_acpc_dc_stats.tsv@2@-x RIGHT-LATERAL-VENTRICLE_MEAN@T1w_acpc_dc_stats.tsv@2@-x LEFT-CEREBRAL-CORTEX_MEAN@T2w_acpc_dc_stats.tsv@2@-x RIGHT-CEREBRAL-CORTEX_MEAN@T2w_acpc_dc_stats.tsv@2@-x LEFT-CEREBRAL-WHITE-MATTER_MEAN@T2w_acpc_dc_stats.tsv@2@-x RIGHT-CEREBRAL-WHITE-MATTER_MEAN@T2w_acpc_dc_stats.tsv@2@-x LEFT-LATERAL-VENTRICLE_MEAN@T2w_acpc_dc_stats.tsv@2@-x RIGHT-LATERAL-VENTRICLE_MEAN@T2w_acpc_dc_stats.tsv@2@-x
+		
+		varkey=$(echo $varset | cut -d '@' -f 1)
+		file=$(echo $varset | cut -d '@' -f 2)
+		col=$(echo $varset | cut -d '@' -f 3)
+		opt=$(echo $varset | cut -d '@' -f 4)
+		varname="$(echo $varset | cut -d '@' -f 2 | sed -e 's/.tsv//g')_$(echo $varset | cut -d '@' -f 1)"
+
+		echo "Class,SubjectID,$varname,SubjectFolder" > $OutputFolder/Structure/${varname}.csv 
+	
+		i=1;
+		SubjID=1
+		while [ $i -le $(echo $ProtocolsList | awk '{print NF}') ] ; do
+			Protocol=$(echo $ProtocolsList | cut -d ' ' -f $i)
+			for Subjects in $(echo $SubjectsList | cut -d ' ' -f $i) ; do
+				for Subject in $(echo $Subjects | sed -e 's/@/ /g') ; do
+					SubjID=$($FSLDIR/bin/zeropad $SubjID 4)
+					# find value of $variable
+					val=$(cat $GroupStudyFolder/$Protocol/$Subject/QC/Structure/$file | grep $varkey | awk -F "\t" '{print $'$col'}')
+					echo "${Protocol},${SubjID},${val},${Subject}" >> $OutputFolder/Structure/${varname}.csv
+					SubjID=$(expr $SubjID + 1)
+				done  
+			done
+			i=$(expr $i + 1)
+		done 
+		
+		${BCILDIR}/bin/bcil_qcplot.R $OutputFolder/Structure/${varname}.csv $OutputFolder/Structure/report/qcplot_${varname}.png $opt
+		echo "  <B>${varname}</B><BR><img src=\"./report/qcplot_${varname}.png\" alt=\"qc_plot_${variable}\" width=\"1850\"><BR><a href=\"./${varname}.csv\">${varname}.csv</a><hr>" >> $reporthtml
+
+	done
+	echo "</div><BR><BR><BR><BR></BODY></HTML>" >> $reporthtml
+
+fi
+
+
+# Create Function 
+
+Func=$(for i in $(cat $OutputFolder/report/Protocol-Subjects-List.txt | awk 'NR>1 {printf "%s/%s ",$1,$3}') ; do if [ -e $GroupStudyFolder/$i/QC/Function/report.html ] ; then echo $i; fi; done)
+
+echo "Creating Function report.html"
+# echo Func: $Func
+
+if [[ $Func != "" ]] ; then
+
+	if [ -d $OutputFolder/Function ] ; then rm -rf $OutputFolder/Function ; fi
+	mkdir -p $OutputFolder/Function/report
+	reporthtml=$OutputFolder/Function/report.html
+
+cat << EOF > $reporthtml
+<HTML>
+ <HEAD>
+   <link REL="stylesheet" TYPE="text/css" href=".files/fsl.css">
+   <TITLE>HCPPIPE GROUP QC REPORT</TITLE>
+   <link rel="icon" type="image/x-icon" href=".files/favicon.ico">
+   <style type="text/css">
+    .button {
+      display       : inline-block;
+      border-radius : 20%;     
+      font-size     : 8pt;    
+      text-align    : center; 
+      cursor        : pointer;
+      padding       : 6px;
+      background    : #ccc;
+      color         : #000000;
+      line-height   : 1em;    
+      transition    : .3s;
+      border: solid 1px;
+      text-decoration: none;
+      margin: 0px 10px;
+    }
+    .button.disabled {
+      display       : inline-block;
+      border-radius : 20%;     
+      font-size     : 8pt;    
+      text-align    : center; 
+      cursor        : pointer;
+      padding       : 6px;
+      background    : #ccc;
+      color         : #808B96;
+      line-height   : 1em;    
+      transition    : .3s;
+      border: solid 1px;
+      text-decoration: none;
+      margin: 0px 10px;
+    }
+    html, body{
+      overflow: scroll;
+    }
+   .stripe {
+      background-image: repeating-linear-gradient(
+      90deg,
+      #f0f0f0 0, #f0f0f0 1px,
+      #ffffff 1px, #ffffff 50px);
+    }    
+  </style>
+  <link href=".files/lightbox.css" rel="stylesheet">
+  <script src=".files/jquery.min.js"></script>
+  <script src=".files/lightbox.min.js" type="text/javascript"></script>
+  <link type="text/css" href=".files/magnifier.css" rel="stylesheet">
+  <script type="text/javascript" src=".files/magnifier.js"></script>
+ </HEAD>
+ <BODY BGCOLOR="#FFFFFF" TEXT="#151515">
+  <div class="stripe">
+EOF
+
+  # for i in QC_sub90_0921/*/QC/Function/run12_PA_AP_stats.tsv ; do mv  $i $(echo $i | sed -e 's/_stats.tsv/\/RestingStateStats.tsv/g'); done
+
+	for varset in Movement_AbsoluteRMS_mean@Movement_AbsoluteRMS_mean.txt@1@1@-x Movement_RelativeRMS_mean@Movement_RelativeRMS_mean.txt@1@1@-x Q2@Movement_Regressors_FD_stats.txt@2@3@-x PercOutlier@ICA-FIX_stats.tsv@2@3@-x Dvar-SvarDivergence@ICA-FIX_stats.tsv@3@3@-x AutocorrCoeffMedian@ICA-FIX_stats.tsv@4@3@-x FSL_BBR@EPI2T1w.mincost.tsv@2@1@-x FreeSurfer_BBR@EPI2T1w.mincost.tsv@2@2@-x IQR@Fieldmap_stats.tsv@2@7@-x TSNR@RestingStateStats.tsv@2@8@-x MotionVarRatio@RestingStateStats.tsv@2@26@-x StructNoiseVarRatio@RestingStateStats.tsv@2@27@-x BOLDVarRatio@RestingStateStats.tsv@2@28@-x UnstructNoiseVarRatio@RestingStateStats.tsv@2@29@-x; do 
+		
+		# Not used variables
+		# NumSignal@RestingStateStats.tsv@2@2@-c NumNoise@RestingStateStats.tsv@2@3@-c NumTotal@RestingStateStats.tsv@2@4@-c 
+		# CNR@RestingStateStats.tsv@2@16@-x HighPassVarRatio@RestingStateStats.tsv@2@25@-x MotionVar@RestingStateStats.tsv@2@11@-x StructNoiseVar@RestingStateStats.tsv@2@12@-x BOLDVar@RestingStateStats.tsv@2@13@-x UnstructNoiseVar@RestingStateStats.tsv@2@14@-x
+		
+		varkey=$(echo $varset | cut -d '@' -f 1)
+		file=$(echo $varset | cut -d '@' -f 2)
+		col=$(echo $varset | cut -d '@' -f 3)
+		row=$(echo $varset | cut -d '@' -f 4)		
+		opt=$(echo $varset | cut -d '@' -f 5)
+		varname="$(echo $file | sed -e 's/.tsv//g' | sed -e 's/.txt//g')_${varkey}"
+		
+		if [ $file != RestingStateStats.tsv ] ; then
+			echo "Class,ScanID,$varname,SubjectFolder,fmriname" > $OutputFolder/Function/${varname}.csv 
+		else
+			echo "Class,StudyID,$varname,SubjectFolder" > $OutputFolder/Function/${varname}.csv
+		fi
+		i=1;
+		ScanID=1
+		while [ $i -le $(echo $ProtocolsList | awk '{print NF}') ] ; do
+			Protocol=$(echo $ProtocolsList | cut -d ' ' -f $i)
+			for Subjects in $(echo $SubjectsList | cut -d ' ' -f $i) ; do
+				for Subject in $(echo $Subjects | sed -e 's/@/ /g') ; do
+					ScanID=$($FSLDIR/bin/zeropad $ScanID 4)
+					# find value of $variable
+					for j in $GroupStudyFolder/$Protocol/$Subject/QC/Function/*/$file ; do
+						pathtofmri=$(dirname $j)
+						fmriname=$(basename $pathtofmri)
+						val=$(cat $GroupStudyFolder/$Protocol/$Subject/QC/Function/${fmriname}/$file | awk -F "\t" 'NR=='$row' {print $'$col'}')
+						if [ $file != RestingStateStats.tsv ] ; then
+							echo "${Protocol},${ScanID},${val},${Subject},${fmriname}" >> $OutputFolder/Function/${varname}.csv
+						else
+							echo "${Protocol},${ScanID},${val},${Subject}" >> $OutputFolder/Function/${varname}.csv						
+						fi
+						ScanID=$(expr $ScanID + 1)
+					done
+				done
+			done
+			i=$(expr $i + 1)
+		done 
+		
+		${BCILDIR}/bin/bcil_qcplot.R $OutputFolder/Function/${varname}.csv $OutputFolder/Function/report/qcplot_${varname}.png $opt
+		echo "  <B>${varname}</B><BR><img src=\"./report/qcplot_${varname}.png\" alt=\"qc_plot_${variable}\" width=\"1850\"><BR><a href=\"./${varname}.csv\">${varname}.csv</a><hr>" >> $reporthtml
+
+	done
+	echo "</div><BR><BR><BR><BR></BODY></HTML>" >> $reporthtml
+
+fi
+
+
+
+# Create Group QC report.html
+reportdir=$OutputFolder/report
+reporthtml=$OutputFolder/report.html
+
+cat <<EOF > $reporthtml 
+<HTML>
+ <HEAD>
+   <link REL="stylesheet" TYPE="text/css" href="../.files/fsl.css">
+   <TITLE>HCPPIPE GROUP QC REPORT</TITLE>
+   <link rel="icon" type="image/x-icon" href="../.files/favicon.ico">
+   <style type="text/css">
+    .button {
+      display       : inline-block;
+      border-radius : 20%;     
+      font-size     : 8pt;    
+      text-align    : center; 
+      cursor        : pointer;
+      padding       : 6px;
+      background    : #ccc;
+      color         : #000000;
+      line-height   : 1em;    
+      transition    : .3s;
+      border: solid 1px;
+      text-decoration: none;
+      margin: 0px 10px;
+    }
+    .button.disabled {
+      display       : inline-block;
+      border-radius : 20%;     
+      font-size     : 8pt;    
+      text-align    : center; 
+      cursor        : pointer;
+      padding       : 6px;
+      background    : #ccc;
+      color         : #808B96;
+      line-height   : 1em;    
+      transition    : .3s;
+      border: solid 1px;
+      text-decoration: none;
+      margin: 0px 10px;
+    }
+    html, body{
+      overflow: hidden;
+    }
+    .water {
+      height: 30px;
+      background-color:#EBF4FA;
+    }
+  </style>
+ </HEAD>
+ <BODY BGCOLOR="#FFFFFF" TEXT="#151515">
+  <center>
+   <div class="water">
+   <B><span style="color:gray">Group QC Charts - </span></B>
+EOF
+
+for Modality in Structure Function Diffusion Tractography; do 
+	if [ -e ${OutputFolder}/${Modality}/report.html ] ; then
+		echo "    <a target=\"Change\" href=\"./${Modality}/report.html\" class=\"button\">${Modality}</a>" >> $reporthtml 
+	else
+		echo "    <a class=\"button disabled\">${Modality}</a>" >> $reporthtml 
+	fi
+done
+cat <<EOF >> $reporthtml 
+   </div>
+  </center>
+  <iframe frameborder="0" style="overflow:hidden; height:100%; width:100%" class="fullheight" name="Change" scrolling="auto"></iframe>
+ </BODY>
+</HTML>
+EOF
+
+echo "Finished!"
