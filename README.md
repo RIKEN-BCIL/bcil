@@ -18,7 +18,7 @@ export FREESURFER_HOME=/usr/local/freesurfer-v5.3.0-HCP
 export FSLDIR=/usr/local/fsl
 export DVARSDIR=/mnt/pub/devel/git/DVARS-master
 ```
-Please edit the paths using *nano* (or whatever editor you like) for your environments. CARET7DIR is the path to Workbench, HCPPIPEDIR is the path to HCP pipeline, FREESURFER_HOME is the path to FreeSurfer.
+Please edit the paths using *nano* (or whatever editor you like) for your environments. CARET7DIR is the path to Workbench, HCPPIPEDIR to HCP pipeline, FREESURFER_HOME  to FreeSurfer, and DVARSDIR to DSE decomposition.
 
 4. Set path to [unzipped directory]/bin
 ```
