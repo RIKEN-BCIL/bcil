@@ -26,11 +26,11 @@ export PATH=[unzipped directory]/bin:$PATH
 ```
 5. Run commands in the directory, [unzipped directory]/bin
 
-Followings are useful for quality checking an individual subject:
+Followings are useful for QCing an individual subject:
 ```
 hcppipe_qc
 ```
-and for group-wise qc:
+and for group-wise QC:
 ```
 hcppipe_gqc
 ```
