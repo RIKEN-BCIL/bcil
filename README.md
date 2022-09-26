@@ -30,8 +30,10 @@ Followings are useful for QCing an individual subject:
 ```
 hcppipe_qc
 ```
-and for group-wise QC:
+, which generates images and brain MRI quality metrics (BQM), and for group-wise QC:
 ```
 hcppipe_gqc
 ```
+, which generates control charts for many BQM.
 
+Note that confidence levels in each chart are currently created by a conventional Shewhart's method based on assumptions of normality (ordinary metrics) or Poisson distribution (count data). Fully non-parametric method is under development for the next release!
