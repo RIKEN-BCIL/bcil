@@ -28,11 +28,11 @@ export PATH=[unzipped directory]/bin:$PATH
 
 Followings are useful for QCing an individual subject:
 ```
-hcppipe_qc
+$ hcppipe_qc
 ```
 , which generates images and brain MRI quality metrics (BQM), and for group-wise QC:
 ```
-hcppipe_gqc
+$ hcppipe_gqc
 ```
 , which generates control charts for many BQM.
 
