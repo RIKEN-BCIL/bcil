@@ -25,11 +25,12 @@ Please edit the paths using *nano* (or whatever editor you like) for your enviro
 export PATH=[unzipped directory]/bin:$PATH
 ```
 5. Run commands in the directory, [unzipped directory]/bin
-Followings are useful for 'qc'ing an individual subject: 
+
+Followings are useful for quality checking an individual subject:
 ```
 hcppipe_qc
 ```
-For 'group qc'hyh:
+and for group-wise qc:
 ```
 hcppipe_gqc
 ```
