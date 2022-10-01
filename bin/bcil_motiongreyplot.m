@@ -11,9 +11,10 @@ function bcil_motiongreyplot(motregabs,greyorig,greyclean,wbcommand,outpng)
 %
 
 PracticalSigThr = 5;  			% Based HCP data
+warning off;
 
 mra=MovPartextImport(motregabs); 		% mra=load('Movement_Regressors.txt');
-greyO=ciftiopen(greyorig, wbcommand);	% greyo=ciftiopen('AP_run-01_epi_Atlas.dtseries.nii','wb_command');
+greyO=ciftiopen(greyorig, wbcommand);		% greyo=ciftiopen('AP_run-01_epi_Atlas.dtseries.nii','wb_command');
 greyC=ciftiopen(greyclean, wbcommand);	% greyc=ciftiopen('AP_run-01_epi_Atlas_hp0_clean.dtseries.nii','wb_command');
 
 DimG=size(greyO.cdata,1);
