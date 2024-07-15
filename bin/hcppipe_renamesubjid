@@ -1,0 +1,112 @@
+#! /bin/bash
+
+Usage () {
+echo ""
+echo " Usage: $0 <Subject DIR to Rename> [New Subject DIR]"
+echo ""
+echo "  'New Subject DIR' is RIKEN Study ID by default. Note that study, subject, research info"
+echo "   are all stored in <Subject DIR>/RawData/Studyinfo.csv. OldSubjectID will be recorted in" 
+echo "   <New Subject DIR>/RawData/SubjectIDOld.txt. If <New Subject DIR> already exists, '+'"
+echo "   will be appended."
+echo ""
+exit 1;
+}
+
+[ "$1" = "" ] && Usage
+
+ReName () {
+	in=$1;shift; out=$1;shift
+	for i in $@ ; do if [ "`echo "${i: -1}"`" != "*" ] ; then sudo mv "$i" "`echo $i | sed -e 's/'$in'/'$out'/g'`"; fi; done
+}
+
+
+SubjectIDOld=`basename "$1"`
+if [ "$2" != "" ] ; then
+	SubjectIDNew=`basename "$2"`
+else
+	SubjectIDNew=`echo "$SubjectIDOld" | head -c 16 | tail -c 9`
+fi
+
+TMP=tmp_$$
+
+while [ -e $SubjectIDNew ] ; do
+	echo "ERROR: $SubjectIDNew already exits. Please specify different dirname"
+	exit 1;
+done
+
+echo SubjectIDNew=$SubjectIDNew
+
+for i in `ls -d "$SubjectIDOld"/*/fsaverage* "$SubjectIDOld"/*/Native 2>/dev/null`; do 
+	echo "Renaming files in $i"
+	pushd "$i"
+	ReName "$SubjectIDOld" "$SubjectIDNew" "$SubjectIDOld"*
+	popd
+done
+
+for i in `ls -d "$SubjectIDOld"/MNINonLinear "$SubjectIDOld"/T1w 2>/dev/null`; do 
+	echo "Renaming files in $i"
+	pushd "$i"
+	ReName "$SubjectIDOld" "$SubjectIDNew" "$SubjectIDOld"*
+	popd
+done
+
+echo "Renaming Subject directory to $SubjectIDNew"
+ReName  "$SubjectIDOld" "$SubjectIDNew" "$SubjectIDOld"
+
+# spec files
+echo "Renaming Subject directory in spec files"
+for i in `ls "$SubjectIDNew"/MNINonLinear/*.spec "$SubjectIDNew"/MNINonLinear/fsaverage*/*.spec "$SubjectIDNew"/T1w/*/*.spec 2>/dev/null` ; do
+	echo "Remaming subject directory in spec file $i" 
+	sudo cat $i | sed -e 's/'$SubjectIDOld'/'$SubjectIDNew'/g' > "${TMP}".spec
+	sudo mv "${TMP}".spec $i
+done
+
+# scene files
+echo "Renaming Subject directory in scene files"
+if [ "`ls ${SubjectIDNew}/MNINonLinear/Results/*/*.scene 2>/dev/null`" != "" ] ; then 
+	for i in `echo "${SubjectIDNew}"/MNINonLinear/Results/*/*.scene | sed -e 's/'${SubjectIDNew}'\/MNINonLinear\/Results\/\*\/\*scene//g'` ; do
+		echo "Remaming files in scene file $i"
+		cat $i | sed -e 's/'$SubjectIDOld'/'$SubjectIDNew'/g' > "${TMP}".scene
+		sudo mv "${TMP}".scene $i
+	done
+fi
+
+# FS .dat and .lta
+echo "Renaming Subject directory in FS .dat and .lta"
+if   [ -e ${SubjectIDNew}/T1w/${SubjectIDNew}_1mm ] ; then
+	FSDIRs="${SubjectIDNew} ${SubjectIDNew}_1mm"
+elif [ -e ${SubjectIDNew}/T1w/${SubjectIDNew}_scaled ] ; then
+	FSDIRs="${SubjectIDNew} ${SubjectIDNew}_scaled"
+else
+	FSDIRs="${SubjectIDNew}"
+fi
+
+for FSDIR in $FSDIRs ; do
+	for xfm in "${SubjectIDNew}"/T1w/"${FSDIR}"/mri/transforms/*.lta "${SubjectIDNew}"/T1w/"${FSDIR}"/mri/transforms/*.dat ; do
+		echo "Renaming $xfm"
+		cat $xfm | sed -e 's/'$SubjectIDOld'/'$SubjectIDNew'/g' > "${TMP}".xfm
+		sudo mv "${TMP}".xfm $xfm 
+	done
+done
+
+
+#if [ "`ls ${SubjectIDNew}/T1w/${SubjectIDNew}_1mm/mri/transforms/*.dat 2>/dev/null`" != "" ] ; then
+#	for i in `echo "${SubjectIDNew}"/T1w/"${SubjectIDNew}"_1mm/mri/transforms/*.dat | sed -e 's/'${SubjectIDNew}'\/T1w\/'${SubjectIDNew}'_1mm\/mri\/transforms\/\*.dat//g'`; do
+#		echo "Reformatting $i"
+#		cat $i | sed -e 's/'$SubjectIDOld'/'$SubjectIDNew'/g' > "${TMP}".dat
+#		sudo mv "${TMP}".dat $i
+#	done
+#fi
+
+#if [ "`ls ${SubjectIDNew}/T1w/${SubjectIDNew}/mri/transforms/*.dat 2>/dev/null`" != "" ] ; then
+#	for i in `echo "${SubjectIDNew}"/T1w/"${SubjectIDNew}"/mri/transforms/*.dat | sed -e 's/'${SubjectIDNew}'\/T1w\/'${SubjectIDNew}'\/mri\/transforms\/\*.dat//g'`; do
+#		echo "Reformatting $i"
+#		cat $i | sed -e 's/'$SubjectIDOld'/'$SubjectIDNew'/g' > "${TMP}".dat
+#		sudo mv "${TMP}".dat $i
+#	done
+#fi
+
+echo $SubjectIDOld > ${SubjectIDNew}/RawData/SubjectIDOld.txt
+
+echo Finished!
+
