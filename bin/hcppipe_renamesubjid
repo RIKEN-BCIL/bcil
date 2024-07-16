@@ -16,9 +16,8 @@ exit 1;
 
 ReName () {
 	in=$1;shift; out=$1;shift
-	for i in $@ ; do if [ "`echo "${i: -1}"`" != "*" ] ; then sudo mv "$i" "`echo $i | sed -e 's/'$in'/'$out'/g'`"; fi; done
+	for i in $@ ; do if [ "`echo "${i: -1}"`" != "*" ] ; then mv "$i" "`echo $i | sed -e 's/'$in'/'$out'/g'`"; fi; done
 }
-
 
 SubjectIDOld=`basename "$1"`
 if [ "$2" != "" ] ; then
@@ -29,12 +28,15 @@ fi
 
 TMP=tmp_$$
 
-while [ -e $SubjectIDNew ] ; do
+if [ -e $SubjectIDNew ] ; then
 	echo "ERROR: $SubjectIDNew already exits. Please specify different dirname"
 	exit 1;
-done
+fi
 
-echo SubjectIDNew=$SubjectIDNew
+if [ ! -w . ] ; then
+	echo "ERROR: don't have permission to create a new subject directory"
+	exit 1;
+fi
 
 for i in `ls -d "$SubjectIDOld"/*/fsaverage* "$SubjectIDOld"/*/Native 2>/dev/null`; do 
 	echo "Renaming files in $i"
@@ -57,8 +59,8 @@ ReName  "$SubjectIDOld" "$SubjectIDNew" "$SubjectIDOld"
 echo "Renaming Subject directory in spec files"
 for i in `ls "$SubjectIDNew"/MNINonLinear/*.spec "$SubjectIDNew"/MNINonLinear/fsaverage*/*.spec "$SubjectIDNew"/T1w/*/*.spec 2>/dev/null` ; do
 	echo "Remaming subject directory in spec file $i" 
-	sudo cat $i | sed -e 's/'$SubjectIDOld'/'$SubjectIDNew'/g' > "${TMP}".spec
-	sudo mv "${TMP}".spec $i
+	cat $i | sed -e 's/'$SubjectIDOld'/'$SubjectIDNew'/g' > "${TMP}".spec
+	mv "${TMP}".spec $i
 done
 
 # scene files
@@ -67,7 +69,7 @@ if [ "`ls ${SubjectIDNew}/MNINonLinear/Results/*/*.scene 2>/dev/null`" != "" ] ;
 	for i in `echo "${SubjectIDNew}"/MNINonLinear/Results/*/*.scene | sed -e 's/'${SubjectIDNew}'\/MNINonLinear\/Results\/\*\/\*scene//g'` ; do
 		echo "Remaming files in scene file $i"
 		cat $i | sed -e 's/'$SubjectIDOld'/'$SubjectIDNew'/g' > "${TMP}".scene
-		sudo mv "${TMP}".scene $i
+		mv "${TMP}".scene $i
 	done
 fi
 
@@ -80,32 +82,18 @@ elif [ -e ${SubjectIDNew}/T1w/${SubjectIDNew}_scaled ] ; then
 else
 	FSDIRs="${SubjectIDNew}"
 fi
-
 for FSDIR in $FSDIRs ; do
-	for xfm in "${SubjectIDNew}"/T1w/"${FSDIR}"/mri/transforms/*.lta "${SubjectIDNew}"/T1w/"${FSDIR}"/mri/transforms/*.dat ; do
+	for xfm in `ls "${SubjectIDNew}"/T1w/"${FSDIR}"/mri/transforms/*.lta "${SubjectIDNew}"/T1w/"${FSDIR}"/mri/transforms/*.dat 2>/dev/null`; do
 		echo "Renaming $xfm"
 		cat $xfm | sed -e 's/'$SubjectIDOld'/'$SubjectIDNew'/g' > "${TMP}".xfm
-		sudo mv "${TMP}".xfm $xfm 
+		mv "${TMP}".xfm $xfm 
 	done
 done
 
-
-#if [ "`ls ${SubjectIDNew}/T1w/${SubjectIDNew}_1mm/mri/transforms/*.dat 2>/dev/null`" != "" ] ; then
-#	for i in `echo "${SubjectIDNew}"/T1w/"${SubjectIDNew}"_1mm/mri/transforms/*.dat | sed -e 's/'${SubjectIDNew}'\/T1w\/'${SubjectIDNew}'_1mm\/mri\/transforms\/\*.dat//g'`; do
-#		echo "Reformatting $i"
-#		cat $i | sed -e 's/'$SubjectIDOld'/'$SubjectIDNew'/g' > "${TMP}".dat
-#		sudo mv "${TMP}".dat $i
-#	done
-#fi
-
-#if [ "`ls ${SubjectIDNew}/T1w/${SubjectIDNew}/mri/transforms/*.dat 2>/dev/null`" != "" ] ; then
-#	for i in `echo "${SubjectIDNew}"/T1w/"${SubjectIDNew}"/mri/transforms/*.dat | sed -e 's/'${SubjectIDNew}'\/T1w\/'${SubjectIDNew}'\/mri\/transforms\/\*.dat//g'`; do
-#		echo "Reformatting $i"
-#		cat $i | sed -e 's/'$SubjectIDOld'/'$SubjectIDNew'/g' > "${TMP}".dat
-#		sudo mv "${TMP}".dat $i
-#	done
-#fi
-
+# record old subject ID
+if [ ! -d ${SubjectIDNew}/RawData ] ; then
+	mkdir -p ${SubjectIDNew}/RawData
+fi
 echo $SubjectIDOld > ${SubjectIDNew}/RawData/SubjectIDOld.txt
 
 echo Finished!
