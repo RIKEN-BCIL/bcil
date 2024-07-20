@@ -6,20 +6,12 @@ echo " Usage: $0 <path to SubjectID to be renamed> <path to New SubjectID>"
 echo ""
 exit 1;
 }
-
 [ "$2" = "" ] && Usage
-
-ReName () {
-	in=$1;shift; out=$1;shift
-	for i in $@ ; do if [ "`echo "${i: -1}"`" != "*" ] ; then mv "$i" "`echo $i | sed -e 's/'$in'/'$out'/g'`"; fi; done
-}
 
 SubjectIDOld=`basename $1`
 SubjectIDNew=`basename $2`
-
 SubjectDirOld=`dirname $(readlink -f $1)`
 SubjectDirNew=`dirname $(readlink -f $2)`
-
 TMP=tmp_$$
 CARET7DIR=/mnt/temp_data1/HCP/workbench-dev/workbench/bin
 
