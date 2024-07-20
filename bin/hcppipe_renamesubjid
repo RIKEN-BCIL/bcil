@@ -90,6 +90,11 @@ for FSDIR in $FSDIRs ; do
 	done
 done
 
+# rename provenance in cifti files
+for ext in surf.gii func.gii shape.gii dscalar.gii dtseries.nii dconn.nii dlabel.nii pconn.nii pdconn.nii dpconn.nii pscalar.nii ptseries.nii ; do
+	find $SubjectIDNew -depth -name "*.$ext" -execdir bash -c 'file=$(readlink -f $1); echo $file; wb_command -metadata-string-replace $file '$SubjectIDOld' '$SubjectIDNew' $file' bash {} \; ;
+done
+
 # record old subject ID
 if [ ! -d ${SubjectIDNew}/RawData ] ; then
 	mkdir -p ${SubjectIDNew}/RawData
