@@ -2,97 +2,77 @@
 
 Usage () {
 echo ""
-echo " Usage: $0 <Subject DIR to Rename> [New Subject DIR]"
-echo ""
-echo "  'New Subject DIR' is RIKEN Study ID by default. Note that study, subject, research info"
-echo "   are all stored in <Subject DIR>/RawData/Studyinfo.csv. OldSubjectID will be recorted in" 
-echo "   <New Subject DIR>/RawData/SubjectIDOld.txt. If <New Subject DIR> already exists, '+'"
-echo "   will be appended."
+echo " Usage: $0 <path to SubjectID to be renamed> <path to New SubjectID>"
 echo ""
 exit 1;
 }
 
-[ "$1" = "" ] && Usage
+[ "$2" = "" ] && Usage
 
 ReName () {
 	in=$1;shift; out=$1;shift
 	for i in $@ ; do if [ "`echo "${i: -1}"`" != "*" ] ; then mv "$i" "`echo $i | sed -e 's/'$in'/'$out'/g'`"; fi; done
 }
 
-SubjectIDOld=`basename "$1"`
-if [ "$2" != "" ] ; then
-	SubjectIDNew=`basename "$2"`
-else
-	SubjectIDNew=`echo "$SubjectIDOld" | head -c 16 | tail -c 9`
-fi
+SubjectIDOld=`basename $1`
+SubjectIDNew=`basename $2`
+
+SubjectDirOld=`dirname $(readlink -f $1)`
+SubjectDirNew=`dirname $(readlink -f $2)`
 
 TMP=tmp_$$
+CARET7DIR=/mnt/temp_data1/HCP/workbench-dev/workbench/bin
 
 if [ -e $SubjectIDNew ] ; then
-	echo "ERROR: $SubjectIDNew already exits. Please specify different dirname"
-	exit 1;
+	echo "Warining: $SubjectIDNew already exits. Change to ${SubjectIDNew}+"
+	SubjectIDNew=${SubjectIDNew}+
 fi
 
-if [ ! -w . ] ; then
+if [ ! -w $SubjectDirNew ] ; then
 	echo "ERROR: don't have permission to create a new subject directory"
 	exit 1;
 fi
 
-for i in `ls -d "$SubjectIDOld"/*/fsaverage* "$SubjectIDOld"/*/Native 2>/dev/null`; do 
-	echo "Renaming files in $i"
-	pushd "$i"
-	ReName "$SubjectIDOld" "$SubjectIDNew" "$SubjectIDOld"*
-	popd
+#####################
+# run
+#####################
+cd $SubjectDirOld
+mkdir -p "$SubjectDirNew"/"$SubjectIDNew"
+
+# copy directories
+cd $SubjectIDOld
+for dir in $(find . -depth -type d -name "*") ; do 
+	echo "renamig $dir -> ${SubjectDirNew}/${SubjectIDNew}/${dir//$SubjectIDOld/$SubjectIDNew}"
+	mkdir -p ${SubjectDirNew}/${SubjectIDNew}/${dir//"$SubjectIDOld"/"$SubjectIDNew"}
+	touch -r $dir ${SubjectDirNew}/${SubjectIDNew}/${dir//"$SubjectIDOld"/"$SubjectIDNew"}
 done
 
-for i in `ls -d "$SubjectIDOld"/MNINonLinear "$SubjectIDOld"/T1w 2>/dev/null`; do 
-	echo "Renaming files in $i"
-	pushd "$i"
-	ReName "$SubjectIDOld" "$SubjectIDNew" "$SubjectIDOld"*
-	popd
+# copy files
+cd $SubjectDirOld
+for file in $(find $SubjectIDOld -depth -type f -name "*") ; do 
+	echo "renaming $file -> ${SubjectDirNew}/${file//"$SubjectIDOld"/"$SubjectIDNew"}"
+	cp -a $file ${SubjectDirNew}/${file//"$SubjectIDOld"/"$SubjectIDNew"}
 done
 
-echo "Renaming Subject directory to $SubjectIDNew"
-ReName  "$SubjectIDOld" "$SubjectIDNew" "$SubjectIDOld"
-
-# spec files
-echo "Renaming Subject directory in spec files"
-for i in `ls "$SubjectIDNew"/MNINonLinear/*.spec "$SubjectIDNew"/MNINonLinear/fsaverage*/*.spec "$SubjectIDNew"/T1w/*/*.spec 2>/dev/null` ; do
-	echo "Remaming subject directory in spec file $i" 
-	cat $i | sed -e 's/'$SubjectIDOld'/'$SubjectIDNew'/g' > "${TMP}".spec
-	mv "${TMP}".spec $i
+# copy links
+for link in $(find $SubjectIDOld -depth -type l -name "*") ; do 
+	echo "renaming $link -> ${SubjectDirNew}/${link//"$SubjectIDOld"/"$SubjectIDNew"}"
+	cp -a $link ${SubjectDirNew}/${link//"$SubjectIDOld"/"$SubjectIDNew"}
 done
 
-# scene files
-echo "Renaming Subject directory in scene files"
-if [ "`ls ${SubjectIDNew}/MNINonLinear/Results/*/*.scene 2>/dev/null`" != "" ] ; then 
-	for i in `echo "${SubjectIDNew}"/MNINonLinear/Results/*/*.scene | sed -e 's/'${SubjectIDNew}'\/MNINonLinear\/Results\/\*\/\*scene//g'` ; do
-		echo "Remaming files in scene file $i"
-		cat $i | sed -e 's/'$SubjectIDOld'/'$SubjectIDNew'/g' > "${TMP}".scene
-		mv "${TMP}".scene $i
-	done
-fi
-
-# FS .dat and .lta
-echo "Renaming Subject directory in FS .dat and .lta"
-if   [ -e ${SubjectIDNew}/T1w/${SubjectIDNew}_1mm ] ; then
-	FSDIRs="${SubjectIDNew} ${SubjectIDNew}_1mm"
-elif [ -e ${SubjectIDNew}/T1w/${SubjectIDNew}_scaled ] ; then
-	FSDIRs="${SubjectIDNew} ${SubjectIDNew}_scaled"
-else
-	FSDIRs="${SubjectIDNew}"
-fi
-for FSDIR in $FSDIRs ; do
-	for xfm in `ls "${SubjectIDNew}"/T1w/"${FSDIR}"/mri/transforms/*.lta "${SubjectIDNew}"/T1w/"${FSDIR}"/mri/transforms/*.dat 2>/dev/null`; do
-		echo "Renaming $xfm"
-		cat $xfm | sed -e 's/'$SubjectIDOld'/'$SubjectIDNew'/g' > "${TMP}".xfm
-		mv "${TMP}".xfm $xfm 
-	done
+# recreate spec, scene, .dat and .lta files
+cd $SubjectDirNew
+for file in $(find $SubjectIDNew -depth -type f -name "*.scene" -o -name "*.spec" -o -name "*.dat" -o -name "*.lta") ; do
+	echo "recreating $file"
+	cat $file | sed -e 's/'$SubjectIDOld'/'$SubjectIDNew'/g' > "${TMP}"
+	touch -r $file "${TMP}"
+	mv "${TMP}" $file
 done
 
-# rename provenance in cifti files
+# rename subjid in the provenance of cifti files
 for ext in surf.gii func.gii shape.gii dscalar.gii dtseries.nii dconn.nii dlabel.nii pconn.nii pdconn.nii dpconn.nii pscalar.nii ptseries.nii ; do
-	find $SubjectIDNew -depth -name "*.$ext" -execdir bash -c 'file=$(readlink -f $1); echo $file; wb_command -metadata-string-replace $file '$SubjectIDOld' '$SubjectIDNew' $file' bash {} \; ;
+	find $SubjectIDNew -depth -name "*.$ext" -execdir bash -c 'file=$(readlink -f $1); echo "updating provenance of $file"; '$CARET7DIR'/wb_command -metadata-string-replace $file '$SubjectIDOld' '$SubjectIDNew' '${TMP}${ext}'; touch -r $file '${TMP}${ext}'; mv '${TMP}${ext}' $file' bash {} \; ;
+
 done
 
 # record old subject ID
