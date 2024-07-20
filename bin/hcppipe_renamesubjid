@@ -71,6 +71,6 @@ if [ ! -d ${SubjectIDNew}/RawData ] ; then
 	mkdir -p ${SubjectIDNew}/RawData
 fi
 echo $SubjectIDOld > ${SubjectIDNew}/RawData/SubjectIDOld.txt
-rm "${TMP}"
+
 echo Finished!
 
