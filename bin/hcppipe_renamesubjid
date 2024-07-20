@@ -63,7 +63,7 @@ for file in $(find $SubjectIDNew -depth -type f -name "*.scene" -o -name "*.spec
 	mv "${TMP}" $file
 done
 
-# rename subjid in the provenance of cifti files
+# rename subjid in the provenance of cifti and gifti
 for ext in surf.gii func.gii shape.gii dscalar.gii dtseries.nii dconn.nii dlabel.nii pconn.nii pdconn.nii dpconn.nii pscalar.nii ptseries.nii ; do
 	find $SubjectIDNew -depth -name "*.$ext" -execdir bash -c 'file=$(readlink -f $1); echo "updating provenance of $file"; '$CARET7DIR'/wb_command -metadata-string-replace $file '$SubjectIDOld' '$SubjectIDNew' '${TMP}${ext}'; touch -r $file '${TMP}${ext}'; mv '${TMP}${ext}' $file' bash {} \; ;
 done
