@@ -15,9 +15,11 @@ SubjectDirNew=`dirname $(readlink -f $2)`
 TMP=tmp_$$
 CARET7DIR=/mnt/temp_data1/HCP/workbench-dev/workbench/bin
 
-if [ -e $SubjectIDNew ] ; then
-	echo "Warining: $SubjectIDNew already exits. Change to ${SubjectIDNew}+"
-	SubjectIDNew=${SubjectIDNew}+
+if [ -e $SubjectDirNew/$SubjectIDNew ] ; then
+	while [ -e $SubjectDirNew/$SubjectIDNew ] ; then
+		SubjectIDNew=${SubjectIDNew}+
+	done
+	echo "Warining: $SubjectIDNew already exits. Change to ${SubjectIDNew}"
 fi
 
 if [ ! -w $SubjectDirNew ] ; then
