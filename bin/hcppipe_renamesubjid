@@ -16,7 +16,7 @@ TMP=tmp_$$
 CARET7DIR=/mnt/temp_data1/HCP/workbench-dev/workbench/bin
 
 if [ -e $SubjectDirNew/$SubjectIDNew ] ; then
-	while [ -e $SubjectDirNew/$SubjectIDNew ] ; then
+	while [ -e $SubjectDirNew/$SubjectIDNew ] ; do
 		SubjectIDNew=${SubjectIDNew}+
 	done
 	echo "Warining: $SubjectIDNew already exits. Change to ${SubjectIDNew}"
