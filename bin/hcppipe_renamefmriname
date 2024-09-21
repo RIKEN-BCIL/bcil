@@ -1,0 +1,169 @@
+#! /bin/bash
+
+cmd=`basename $0`
+Usage () {
+echo ""
+echo " Usage: ${cmd} <Subject DIR> <old fMRIName(s)> <new fMRIName(s)>"
+echo ""
+echo " Multiple fMRIName(s) must be separated by @. Example usage is:"
+echo ""
+echo " \$$cmd H18120101 rfmri01@rfmri02 rfmri01AP@rfmri02PA"
+echo ""
+exit 1;
+}
+
+[ "$1" = "" ] && Usage
+
+ReName () {
+	in=$1;shift; out=$1;shift
+	for i in $@ ; do 
+		if [ "`echo "${i: -1}"`" != "*" ] ; then
+			rename=`echo $i | sed -e 's/'$in'/'$out'/g'`
+			echo "Renaming $i -> $rename" 
+			    mv "$i" "$rename"
+			if [ $? = 1 ] ; then
+				echo "ERROR: cannot move $i"
+				exit 1
+			fi
+		fi
+	done
+}
+
+CARET7DIR=/mnt/temp_data1/HCP/workbench-dev/workbench/bin
+
+SubjectID=$1
+fMRINameOlds=(`echo $2 | sed 's/.nii.gz//g' | sed 's/@/ /g'`)
+fMRINameNews=(`echo $3 | sed 's/.nii.gz//g' | sed 's/@/ /g'`)
+
+#echo ${fMRINameOlds[@]}
+#echo ${fMRINameNews[@]}
+
+if [ "${#fMRINameOlds[@]}" != "${#fMRINameNews[@]}" ] ; then
+	echo "ERROR: not same number of fMRINames between old and new"
+	exit 1;
+fi
+
+TMP=tmp_$$
+
+num=0
+while [ $num -lt ${#fMRINameOlds[@]} ] ; do
+	fMRINameOld=${fMRINameOlds[$num]} 
+	fMRINameNew=${fMRINameNews[$num]}
+
+	echo ""
+	echo fMRINameNew=$fMRINameNew
+	echo ""
+
+	if [ -d ${SubjectID}/$fMRINameNew ] ; then
+		echo "Warning: ${SubjectID}/$fMRINameNew already exits. Skip this folder"
+	elif [ -d ${SubjectID}/$fMRINameOld ] ; then
+		echo "Renaming files in ${SubjectID}/$fMRINameOld" 
+		cd ${SubjectID}/$fMRINameOld 
+		ReName "$fMRINameOld" "$fMRINameNew" "$fMRINameOld"*
+		cd ..
+		ReName "$fMRINameOld" "$fMRINameNew" "$fMRINameOld"*
+		cd ..
+	fi
+
+	if [ -d ${SubjectID}/MNINonLinear/Results/$fMRINameNew ] ; then
+		echo "Warning: ${SubjectID}/MNINonLinear/Results/$fMRINameNew already exits. Skip this folder"
+	elif [ -d ${SubjectID}/MNINonLinear/Results/$fMRINameOld ] ; then
+		echo "Renaming files in ${SubjectID}/MNINonLinear/Results/$fMRINameOld" 
+		cd ${SubjectID}/MNINonLinear/Results/$fMRINameOld
+		ReName "$fMRINameOld" "$fMRINameNew" "$fMRINameOld"*
+		cd ..
+		ReName "$fMRINameOld" "$fMRINameNew" "$fMRINameOld"*
+		cd ../../../
+	fi
+	# spec files
+	#echo "Renaming Subject directory in spec and scene files"
+	#for i in `ls "$fMRINameNew"/MNINonLinear/*.spec "$fMRINameNew"/*/*/*.spec 2>/dev/null` ; do
+	#	echo "Remaming files in spec file $i" 
+	#	 cat $i | sed -e 's/'$fMRINameOld'/'$fMRINameNew'/g' > "${TMP}".spec
+	#       mv "${TMP}".spec $i
+	#done
+
+	# renaming scene files
+	if [ "`ls ${SubjectID}/MNINonLinear/Results/${fMRINameNew}/*.scene 2>/dev/null`" != "" ] ; then 
+		for i in "${SubjectID}"/MNINonLinear/Results/${fMRINameNew}/*.scene; do
+			echo "Remaming files in scene file $i"
+			cat $i | sed -e 's/'$fMRINameOld'/'$fMRINameNew'/g' > "${TMP}".scene
+			rm $i
+			mv "${TMP}".scene $(echo $i | sed -e 's/'$fMRINameOld'/'$fMRINameNew'/g')
+		done
+	fi
+
+	if [ "`ls ${SubjectID}/MNINonLinear/Results/${fMRINameNew}/${fMRINameNew}_hp*.ica 2>/dev/null`" != "" ] ; then 
+		for i in "${SubjectID}"/MNINonLinear/Results/${fMRINameNew}/${fMRINameNew}_hp*.ica; do
+			for j in Atlas.dtseries.nii filtered_func_data.nii.gz mean_func.nii.gz; do
+				if [ -L $i/$j ] ; then
+					echo "Remaming link $j in $i"
+					ln -sf $(readlink $i/$j | sed -e 's/'$fMRINameOld'/'$fMRINameNew'/g') $i/$j
+				fi
+			done
+			if [ -e $i/fix/features_info.csv ] ; then
+				cat $i/fix/features_info.csv | sed -e 's/'$fMRINameOld'/'$fMRINameNew'/g' > "${TMP}".csv
+				mv "${TMP}".csv  $i/fix/features_info.csv
+			fi
+		done
+	fi
+
+	# rename provenance
+	for ext in surf.gii func.gii shape.gii dscalar.gii dtseries.nii dconn.nii dlabel.nii pconn.nii pdconn.nii dpconn.nii pscalar.nii ptseries.nii ; do
+		for file in $(find ${SubjectID}/MNINonLinear/Results/${fMRINameNew} -depth -name "*.$ext") ; do
+			echo "updating provenance of $file";
+			$CARET7DIR/wb_command -metadata-string-replace $file $SubjectIDOld $SubjectIDNew ${TMP}.${ext}; 
+			touch -r $file ${TMP}.${ext}; 
+			mv ${TMP}.${ext} $file
+		done
+	done
+
+	fMRINameRefOld="${fMRINameOld}"_SBRef
+	fMRINameRefNew="${fMRINameNew}"_SBRef
+
+	# rename filenames in RawData
+	if [[ -e ${SubjectID}/RawData/${fMRINameOld}.nii.gz || ${SubjectID}/RawData/${fMRINameOld}.nii ]] ; then
+		RawData="ON"
+		echo ""
+		echo "Editing filenames in RawData"
+		cd ${SubjectID}/RawData
+		if [ -e ${fMRINameOld}.nii.gz ] ; then 
+			mv ${fMRINameOld}.nii.gz ${fMRINameNew}.nii.gz 
+		fi
+		if [ -e ${fMRINameOld}.nii ] ; then 
+			mv ${fMRINameOld}.nii ${fMRINameNew}.nii
+		fi
+		if [ -e ${fMRINameRefOld}.nii.gz ] ; then
+			mv ${fMRINameRefOld}.nii.gz ${fMRINameRefNew}.nii.gz 
+		fi
+		if [ -e ${fMRINameRefOld}.nii ] ; then
+			mv ${fMRINameRefOld}.nii ${fMRINameRefNew}.nii 
+		fi
+		cd ../../
+	fi
+	num=`expr $num + 1`
+
+done
+
+if [ "$RawData" = "ON" ] ; then
+
+	echo ""
+	echo "Editing hcppipe_conf.txt"
+	echo "" >> ${SubjectID}/RawData/hcppipe_conf.txt
+	source ${SubjectID}/RawData/hcppipe_conf.txt 
+	num=0
+	while [ $num -lt ${#fMRINameOlds[@]} ] ; do 
+		fMRINameOld=${fMRINameOlds[$num]} 
+		fMRINameNew=${fMRINameNews[$num]}
+		Tasklist=$(echo $Tasklist | sed -e 's/'$fMRINameOld'/'$fMRINameNew'/g'); done
+		Taskreflist=$(echo $Taskreflist | sed -e 's/'$fMRINameOld'/'$fMRINameNew'/g'); done
+	done
+	echo "# Renamed fmri" >> ${SubjectID}/RawData/hcppipe_conf.txt
+	echo "Tasklist=\"$Tasklist\"" >> ${SubjectID}/RawData/hcppipe_conf.txt
+	echo "Taskreflist=\"$Taskreflist\"" >> ${SubjectID}/RawData/hcppipe_conf.txt
+	echo ""
+
+fi
+
+echo Finished!
+
