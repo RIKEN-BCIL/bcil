@@ -44,14 +44,14 @@ done
 # copy files
 cd $SubjectDirOld
 for file in $(find $SubjectIDOld -depth -type f -name "*") ; do 
-	echo "renaming $file -> ${SubjectDirNew}/${file//"$SubjectIDOld"/"$SubjectIDNew"}"
-	cp -a $file ${SubjectDirNew}/${file//"$SubjectIDOld"/"$SubjectIDNew"}
+	echo "renaming $file -> ${SubjectDirNew}/${file//$SubjectIDOld/$SubjectIDNew}"
+	cp -a $file ${SubjectDirNew}/${file//$SubjectIDOld/$SubjectIDNew}
 done
 
 # copy links
 for link in $(find $SubjectIDOld -depth -type l -name "*") ; do 
-	echo "renaming $link -> ${SubjectDirNew}/${link//"$SubjectIDOld"/"$SubjectIDNew"}"
-	cp -a $link ${SubjectDirNew}/${link//"$SubjectIDOld"/"$SubjectIDNew"}
+	echo "renaming $link -> ${SubjectDirNew}/${link//$SubjectIDOld/$SubjectIDNew}"
+	cp -a $link ${SubjectDirNew}/${link//$SubjectIDOld/$SubjectIDNew}
 done
 
 # recreate spec, scene, .dat and .lta files
@@ -74,10 +74,10 @@ for ext in surf.gii func.gii shape.gii dscalar.gii dtseries.nii dconn.nii dlabel
 done
 
 # record old subject ID
-if [ ! -d ${SubjectIDNew}/RawData ] ; then
-	mkdir -p ${SubjectIDNew}/RawData
+if [ ! -d ${SubjectIDNew}/logs ] ; then
+	mkdir -p ${SubjectIDNew}/logs
 fi
-echo $SubjectIDOld > ${SubjectIDNew}/RawData/SubjectIDOld.txt
+echo "$(date): changed SubjectID from '${SubjectIDOld}' to '${SubjectIDNew}'" >> ${SubjectIDNew}/logs/SubjectID.log
 
 echo Finished!
 
