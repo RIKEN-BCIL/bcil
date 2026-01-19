@@ -2,20 +2,21 @@
 Brain Connectomics Imaging Libraries
 
 ## Installation
-1. Requires FSL, WORKBENCH, FreeSurfer, matlab, R
+1. Requires FSL (>=6.0), WORKBENCH (>=2.0.0), FreeSurfer (>=6.0.0) , matlab (>=2022b), R (>=4.3.0)
 
 * matlab toolbox: DSE decomposition (https://github.com/asoroosh/DVARS)
 * R toolbox: ggplot2
 * jq
+* ImageMagick
 
 2. Donwload zip file of bcil and unzip the file
 3. Configure the setting file ([unzipped directory]/bcilconf/settings.sh) for your environments
 
 Default settings are:
 ```
-export CARET7DIR=/mnt/pub/devel/workbench/release/1.5.0
-export HCPPIPEDIR=/mnt/pub/devel/NHPHCPPipeline
-export FREESURFER_HOME=/usr/local/freesurfer-v5.3.0-HCP
+export CARET7DIR=/usr/local/workbench/
+export HCPPIPEDIR=/mnt/pub/devel/HCPPipeline
+export FREESURFER_HOME=/usr/local/freesurfer-v0.0.0
 export FSLDIR=/usr/local/fsl
 export DVARSDIR=/mnt/pub/devel/git/DVARS-master
 ```
