@@ -5,7 +5,8 @@ Brain Connectomics Imaging Libraries
 1. Requires FSL, WORKBENCH, FreeSurfer, matlab, R
 
 * matlab toolbox: DSE decomposition (https://github.com/asoroosh/DVARS)
-* R toolbox: ggplot2, ggQC, gridExtra
+* R toolbox: ggplot2
+* jq
 
 2. Donwload zip file of bcil and unzip the file
 3. Configure the setting file ([unzipped directory]/bcilconf/settings.sh) for your environments
