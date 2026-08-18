@@ -7,9 +7,31 @@
 # StructuralQC.scene was created by modifying a software, Human Connectome Project [StructuralQC].
 # Copyright (c) 2011-2016 [The Human Connectome Project][HCP]
 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+# * Neither the name of this project nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 set -euo pipefail
 
-VERSION=1.0
+VERSION="1.1"
+COPYRIGHT_YEAR="2006-2026"
 
 BCILDIR=$(cd $(dirname $0); cd ..; pwd)
 source $BCILDIR/bcilconf/settings.sh
@@ -51,9 +73,11 @@ fi
 Usage_exit () {
 
  echo ""
- echo " QC for HCP pipeline data"
+ echo " Create QC report for HCP pipeline data"
  echo ""
- echo " Usage 1: hcppipe_qc <Study Folder> <Subject ID> <arguments>"
+ echo " Version: $VERSION"
+ echo ""
+ echo " Usage: hcppipe_qc <Study Folder> <Subject ID> <arguments>"
  echo ""
  echo " Compulsory arguments (any one or more of):"
  echo "    -s : Structural QC"
@@ -63,7 +87,11 @@ Usage_exit () {
 # echo "    -z <modality label>: zip archive for modality label (e.g. sfFdt). Output is <Study Folder>/<Subject ID>/QC/<Subject ID>_<modality label>.zip"
  echo ""
  echo " Optional arguments:"
- echo "    -a <num> : atlas species (0: Human [default], 1: Macaque [MacaqueRIKEN32BS], 1.1: Macaque cynomolgus [Mac24cyno], 1.2: rhesus (Mac25Rhesus), 2: Marmoset)"
+ echo "    -a <label>    0:   Human              (HCP-S1200) [default]"
+ echo "                  1:   Macaque            (MacaqueRIKEN32BS)"
+ echo "                  1.1: Macaque Cynomolgus (Mac24cyno)"
+ echo "                  1.2: Macaque Rhesus     (Mac25Rhesus)"
+ echo "                  2:   Marmoset           (MarmosetRIKEN25)"
 # echo "    -m       : create movie of fMRI before and after ICA-FIX clean in Functional QC"
  echo ""
  exit 1
@@ -185,7 +213,7 @@ if [ $Species = 0 ] ; then
 
 	TemplateFolder=${BCILDIR}/data/HCP-S1200
 	TemplateName=S1200
-	LABEL=${TemplateFolder}/MNINonLinear/fsaverage_LR32k/Q1-Q6_RelatedParcellation210.CorticalAreas_dil_Final_Final_Areas_Group_Colors.32k_fs_LR.dlabel.nii
+	LABEL="${TemplateFolder}/MNINonLinear/fsaverage_LR32k/Q1-Q6_RelatedParcellation210.CorticalAreas_dil_Final_Final_Areas_Group_Colors.32k_fs_LR.dlabel.nii"
 	MyelinQ1to3=${TemplateFolder}/MNINonLinear/S1200.MyelinMap_BC_MSMAll_Q1-2-3.164k_fs_LR.dscalar.nii
 	ThicknessQ1to3=${TemplateFolder}/MNINonLinear/S1200.thickness_MSMAll_Q1-2-3.164k_fs_LR.dscalar.nii
 	GreyordinateResolution=2
@@ -195,32 +223,46 @@ if [ $Species = 0 ] ; then
 elif [ $Species = 1 ] ; then
 
 	TemplateFolder=${BCILDIR}/data/MacaqueRIKEN32BS
-	TempateName=MacaqueRIKEN32BS
-	MyelinQ1to3=${TemplateFolder}/MNINonLinear/${TempateName}.MyelinMap_BC_Q1-2-3.164k_fs_LR.dscalar.nii
-	ThicknessQ1to3=${TemplateFolder}/MNINonLinear/${TempateName}.thickness_Q1-2-3.164k_fs_LR.dscalar.nii
+	TemplateName=MacaqueRIKEN32BS
+	LABEL=""
+	MyelinQ1to3=${TemplateFolder}/MNINonLinear/${TemplateName}.MyelinMap_BC_Q1-2-3.164k_fs_LR.dscalar.nii
+	ThicknessQ1to3=${TemplateFolder}/MNINonLinear/${TemplateName}.thickness_Q1-2-3.164k_fs_LR.dscalar.nii
 	GreyordinateResolution=1.25
 	ICAdim=19
 	SPECIES=Macaque
 
 elif [ $Species = 2 ] ; then
 
-	TemplateFolder=${BCILDIR}/data/MarmosetRIKEN20
-	TempateName=MarmosetRIKEN20
-	MyelinQ1to3=${TemplateFolder}/MNINonLinear/${TempateName}.MyelinMap_BC_Q1-2-3.164k_fs_LR.dscalar.nii
-	ThicknessQ1to3=${TemplateFolder}/MNINonLinear/${TempateName}.thickness_Q1-2-3.164k_fs_LR.dscalar.nii
+	TemplateFolder=${BCILDIR}/data/MarmosetRIKEN25
+	TemplateName=MarmosetRIKEN25
+	LABEL="${TemplateFolder}/MNINonLinear/fsaverage_LR32k/Nencki-Monash.atlas.32k_fs_LR.dlabel.nii"
+	MyelinQ1to3=${TemplateFolder}/MNINonLinear/${TemplateName}.MyelinMap_BC_Q1-2-3.164k_fs_LR.dscalar.nii
+	ThicknessQ1to3=${TemplateFolder}/MNINonLinear/${TemplateName}.thickness_Q1-2-3.164k_fs_LR.dscalar.nii
 	GreyordinateResolution=0.8
 	ICAdim=10
 	SPECIES=Marmoset
 
 elif [ $Species = 1.1 ] ; then
 
-	TemplateFolder=${BCILDIR}/data/SpecMac24cyno
-	TempateName=SpecMac24cyno
-	MyelinQ1to3=${TemplateFolder}/MNINonLinear/${TempateName}.MyelinMap_BC_Q1-2-3.164k_fs_LR.dscalar.nii
-	ThicknessQ1to3=${TemplateFolder}/MNINonLinear/${TempateName}.thickness_Q1-2-3.164k_fs_LR.dscalar.nii
+	TemplateFolder=${BCILDIR}/data/Mac25Cyno
+	TemplateName=Mac25Cyno
+	LABEL="${TemplateFolder}/MNINonLinear/fsaverage_LR32k/D99_atlas_v2.0_cortical.32k_fs_LR.dlabel.nii"
+	MyelinQ1to3=${TemplateFolder}/MNINonLinear/${TemplateName}.MyelinMap_BC_Q1-2-3.164k_fs_LR.dscalar.nii
+	ThicknessQ1to3=${TemplateFolder}/MNINonLinear/${TemplateName}.thickness_Q1-2-3.164k_fs_LR.dscalar.nii
 	GreyordinateResolution=1.25
 	ICAdim=19
 	SPECIES=MacaqueCyno
+
+elif [ $Species = 1.2 ] ; then
+
+	TemplateFolder=${BCILDIR}/data/Mac25Rhesus
+	TemplateName=Mac25Rhesus
+	LABEL="${TemplateFolder}/MNINonLinear/fsaverage_LR32k/D99_atlas_v2.0_cortical.32k_fs_LR.dlabel.nii"
+	MyelinQ1to3=${TemplateFolder}/MNINonLinear/${TemplateName}.MyelinMap_BC_Q1-2-3.164k_fs_LR.dscalar.nii
+	ThicknessQ1to3=${TemplateFolder}/MNINonLinear/${TemplateName}.thickness_Q1-2-3.164k_fs_LR.dscalar.nii
+	GreyordinateResolution=1.25
+	ICAdim=19
+	SPECIES=MacaqueRhesus
 
 else
 	echo "ERROR: unknown species: $Species"
@@ -246,7 +288,8 @@ logMsg "Host: `hostname`"
 logMsg "Structure: $Struc"
 logMsg "Function: $Func"
 logMsg "Diffusion: $Diff"
-logMsg "Zip: $Zip"
+logMsg "SPECIES: $SPECIES"
+logMsg "Template folder: $TemplateFolder"
 
 if [ -e $StudyFolder/$Subject/RawData/hcppipe_conf.txt ] ; then
 	logMsg "Importing inputs data from $StudyFolder/$Subject/RawData/hcppipe_conf.txt"
@@ -319,21 +362,28 @@ elif [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/n
 	if [ -e $StudyFolder/$Subject/RawData/Seriesinfo.csv ] ; then
 		echo "<I>Scanning parameters for input volumes</I><BR>" >> $reporthtml
 		echo -e "Filename\tSeriesNum\tProtocol\tTR[ms]\tTE[ms]\tTI[ms]\tFA[deg]\tMatrix\tPixelSize[mm]\tSliceThickness[mm]\tPreScanNorm\tDwelltimeRead[sec]\tDwelltimePhase[sec]\tReadDir\tPhaseDir\tSliceDir\tTxAmp[V]\tParallelFactor\tMultiBandFactor" > $reportdir/scaninfo.tsv
-		for i in $T1wInputImages $T2wInputImages $(echo $TopupPositive | awk '{print $1}') $(echo $TopupNegative | awk '{print $1}') ; do
-			if [ ! -z "$(ls -loh --time-style=iso $(imglob -extension $StudyFolder/$Subject/RawData/$i) | awk '{print $9}')" ] ; then
-				scannum=$(echo $(basename $(ls -loh --time-style=iso $(imglob -extension $StudyFolder/$Subject/RawData/$i) | awk '{print $9}') | cut -d '_' -f 1))
-				if [[ ! -z $(cat $StudyFolder/$Subject/RawData/Seriesinfo.csv | awk 'BEGIN{FS=","} $1 == '$scannum' {print $15}' | grep NORM) ]] ; then
-					PreScanNorm=ON
-				else
-					PreScanNorm=OFF
+		for i in $T1wInputImages $T2wInputImages $(echo "${TopupPositive:-}" | awk '{print $1}') $(echo "${TopupNegative:-}" | awk '{print $1}') ; do
+			[ -z "$i" ] && continue
+			link=$(ls -loh --time-style=iso $(imglob -extension "$StudyFolder/$Subject/RawData/$i") 2>/dev/null | awk '{print $NF}' | head -n 1) || link=""
+			if [ ! -z "$link" ] ; then
+				scannum="${link##*/}"
+				scannum="${scannum%%_*}"
+				if [[ "$scannum" =~ ^[0-9]+$ ]]; then
+					logMsg "Scan Num (struct): $scannum $i -> $link"
+					if [[ ! -z $(cat $StudyFolder/$Subject/RawData/Seriesinfo.csv | awk 'BEGIN{FS=","} $1 == '$scannum' {print $15}' | grep NORM) ]] ; then
+						PreScanNorm=ON
+					else
+						PreScanNorm=OFF
+					fi
+					pixsize=($(printf "%0.2f " $(cat $StudyFolder/$Subject/RawData/Seriesinfo.csv | awk 'BEGIN{FS=","} $1 == '$scannum' {print $12}')))
+					pixsize="${pixsize[0]:-NA}x${pixsize[1]:-NA}"
+					cat $StudyFolder/$Subject/RawData/Seriesinfo.csv | awk 'BEGIN{FS=","} $1 == '$scannum' {printf "%s\t%d\t%s\t%0.0f\t%0.2f\t%0.0f\t%d\t%s\t%s\t%0.2f\t%s\t%0.7f\t%0.7f\t%s\t%s\t%s\t%0.1f\t%d\t%d\n","'$i'",$1,$4,$7,$8,$9,$10,$11,"'${pixsize}'",$13,"'$PreScanNorm'",$16,$17,$18,$19,$20,$22,$23,$24}' >> $reportdir/scaninfo.tsv
 				fi
-				pixsize=($(printf "%0.2f " $(cat $StudyFolder/$Subject/RawData/Seriesinfo.csv | awk 'BEGIN{FS=","} $1 == '$scannum' {print $12}')))
-				pixsize="${pixsize[0]}x${pixsize[1]}"
-				cat $StudyFolder/$Subject/RawData/Seriesinfo.csv | awk 'BEGIN{FS=","} $1 == '$scannum' {printf "%s\t%d\t%s\t%0.0f\t%0.2f\t%0.0f\t%d\t%s\t%s\t%0.2f\t%s\t%0.7f\t%0.7f\t%s\t%s\t%s\t%0.1f\t%d\t%d\n","'$i'",$1,$4,$7,$8,$9,$10,$11,"'${pixsize}'",$13,"'$PreScanNorm'",$16,$17,$18,$19,$20,$22,$23,$24}' >> $reportdir/scaninfo.tsv
 			else
 				echo -e "$i\tNo link to\tprotocol.\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t" >> $reportdir/scaninfo.tsv
 			fi
 		done
+		logMsg "Structure: rendering scaninfo.tsv to HTML"
 		cat $reportdir/scaninfo.tsv | tsv2html >> $reporthtml
 		echo "<BR>" >> $reporthtml
 	fi
@@ -355,6 +405,16 @@ elif [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/n
 		ASEG="${FreeSurferFolder}/mri/aseg.hires.mgz"
 	else
 		ASEG="${FreeSurferFolder}/mri/aseg.mgz"
+	fi
+
+	if [ ! -e "$ASEG" ]; then
+		logMsg "ERROR: FreeSurfer aseg not found: $ASEG"
+		logMsg "Expected aseg.hires.mgz or aseg.mgz under ${FreeSurferFolder}/mri/"
+		exit 1
+	fi
+	if [ ! -e "$T1wFolder"/"$T1wImage".nii.gz ]; then
+		logMsg "ERROR: missing T1w reference for aseg resampling: $T1wFolder/$T1wImage.nii.gz"
+		exit 1
 	fi
 
 	logMsg "Creating ROIs from aseg"
@@ -487,14 +547,18 @@ elif [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/n
 			dsize=($(echo ${rsize[@]} | awk '{printf "%d %d",$1*2,$2*2}'))
 			echo "<div class=\"magnifier\" style=\"width: ${rsize[0]}px;height:${rsize[1]}px\"><div class=\"maglens\" style=\"width:240px; height:150px\"><img src=\"./report/PhaseOnevsTwo_gdc_merge.gif\" class=\"maglarge\" style=\"width:${dsize[0]}px;height:${dsize[1]}px\"/></div></div><BR>" >> $reporthtml
 
-			# Fieldmap and agnitude vs T1w_acpc to check registration
-			$FSLDIR/bin/fslmaths $T2wToT1wDir/FieldMap2T1w_acpc -thr 0 $T2wToT1wDir/FieldMap2T1w_acpc_p
-			$FSLDIR/bin/fslmaths $T2wToT1wDir/FieldMap2T1w_acpc -uthr 0 -mul -1 $T2wToT1wDir/FieldMap2T1w_acpc_m
-			$FSLDIR/bin/overlay 1 0 $T2wToT1wDir/T1w_acpc.nii.gz -a $T2wToT1wDir/FieldMap2T1w_acpc_p  .1 500 $T2wToT1wDir/FieldMap2T1w_acpc_m .1 500 $T2wToT1wDir/FieldMap2T1w_acpc_overlay.nii.gz
+			# Fieldmap and magnitude vs T1w_acpc to check registration
+			$FSLDIR/bin/fslmaths $T2wToT1wDir/FieldMap2T1w_acpc -thr 0 $T2wToT1wDir/FieldMap2T1w_acpc_p.nii.gz
+			$FSLDIR/bin/fslmaths $T2wToT1wDir/FieldMap2T1w_acpc -uthr 0 -mul -1 $T2wToT1wDir/FieldMap2T1w_acpc_m.nii.gz
+			$FSLDIR/bin/overlay 1 0 $T2wToT1wDir/T1w_acpc.nii.gz -a $T2wToT1wDir/FieldMap2T1w_acpc_p.nii.gz  .1 500 $T2wToT1wDir/FieldMap2T1w_acpc_m.nii.gz .1 500 $T2wToT1wDir/FieldMap2T1w_acpc_overlay.nii.gz
 			$FSLDIR/bin/slicer $T2wToT1wDir/FieldMap2T1w_acpc_overlay.nii.gz -s 2 -a ${reportdir}/FieldMap2T1w_acpc_overlay.png
-			if [ -e ${FieldMapDir}/../Magnitude_brain_warppedT1w2T1w_acpc.nii.gz ] ; then #SE fieldmap
+			if [ -e ${FieldMapDir}/../Magnitude_brain_warpedT1w2T1w_acpc.nii.gz ] ; then #SE fieldmap (HCP pipeline >= 5.0)
+				Mag2T1w=${FieldMapDir}/../Magnitude_brain_warpedT1w2T1w_acpc.nii.gz
+			elif [ -e ${FieldMapDir}/../Magnitude_brain_warppedT1w2T1w_acpc.nii.gz ] ; then #SE fieldmap (HCP pipeline < 5.0)
 				Mag2T1w=${FieldMapDir}/../Magnitude_brain_warppedT1w2T1w_acpc.nii.gz
-			elif [ -e ${FieldMapDir}/../Magnitude_warppedT1w2T1w_acpc.nii.gz ] ; then # GE filedmap
+			elif [ -e ${FieldMapDir}/../Magnitude_warpedT1w2T1w_acpc.nii.gz ] ; then # GE filedmap (HCP pipeline >= 5.0)
+				Mag2T1w=${FieldMapDir}/../Magnitude_warpedT1w2T1w_acpc.nii.gz
+			elif [ -e ${FieldMapDir}/../Magnitude_warppedT1w2T1w_acpc.nii.gz ] ; then # GE filedmap (HCP pipeline < 5.0) 
 				Mag2T1w=${FieldMapDir}/../Magnitude_warppedT1w2T1w_acpc.nii.gz
 			fi
 			${FSLDIR}/bin/slicer $Mag2T1w ${FieldMapDir}/../T1w_acpc.nii.gz -s 2 -a ${reportdir}/MagT1w_acpc.png
@@ -633,16 +697,16 @@ elif [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/n
 		cp ${TemplateFolder}/MNINonLinear/fsaverage_LR32k/S1200.MyelinMap_MSMAll.32k_fs_LR.dscalar.nii ${TemplateFolder}/MNINonLinear/fsaverage_LR32k/S1200.MyelinMap_BC_MSMAll.32k_fs_LR.dscalar.nii ${TemplateFolder}/MNINonLinear/fsaverage_LR32k/S1200.thickness_MSMAll.32k_fs_LR.dscalar.nii $OutputFolder/Structure/Templates/fsaverage_LR32k/
 
 	else # MSMAll is not yet established in NHP
-		cp ${TemplateFolder}/MNINonLinear/${TempateName}_AverageT1w_restore.nii.gz $OutputFolder/Structure/Templates/MNI152_T1_0.7mm.nii.gz
+		cp ${TemplateFolder}/MNINonLinear/${TemplateName}_AverageT1w_restore.nii.gz $OutputFolder/Structure/Templates/MNI152_T1_0.7mm.nii.gz
 		for hemi in L R; do
-			cp ${TemplateFolder}/MNINonLinear/${TempateName}.${hemi}.inflated.164k_fs_LR.surf.gii $OutputFolder/Structure/Templates/S1200.${hemi}.inflated_MSMAll.164k_fs_LR.surf.gii
-			cp ${TemplateFolder}/MNINonLinear/${TempateName}.${hemi}.midthickness.164k_fs_LR.surf.gii $OutputFolder/Structure/Templates/S1200.${hemi}.midthickness_MSMAll.164k_fs_LR.surf.gii
+			cp ${TemplateFolder}/MNINonLinear/${TemplateName}.${hemi}.inflated.164k_fs_LR.surf.gii $OutputFolder/Structure/Templates/S1200.${hemi}.inflated_MSMAll.164k_fs_LR.surf.gii
+			cp ${TemplateFolder}/MNINonLinear/${TemplateName}.${hemi}.midthickness.164k_fs_LR.surf.gii $OutputFolder/Structure/Templates/S1200.${hemi}.midthickness_MSMAll.164k_fs_LR.surf.gii
 		done
-		cp ${TemplateFolder}/MNINonLinear/${TempateName}.MyelinMap_BC.164k_fs_LR.dscalar.nii $OutputFolder/Structure/Templates/S1200.MyelinMap_BC_MSMAll.164k_fs_LR.dscalar.nii
-		cp ${TemplateFolder}/MNINonLinear/${TempateName}.sulc.164k_fs_LR.dscalar.nii $OutputFolder/Structure/Templates/S1200.sulc_MSMAll.164k_fs_LR.dscalar.nii
-		cp ${TemplateFolder}/MNINonLinear/fsaverage_LR32k/${TempateName}.MyelinMap.32k_fs_LR.dscalar.nii  $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.MyelinMap_MSMAll.32k_fs_LR.dscalar.nii
-		cp ${TemplateFolder}/MNINonLinear/fsaverage_LR32k/${TempateName}.MyelinMap_BC.32k_fs_LR.dscalar.nii  $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.MyelinMap_BC_MSMAll.32k_fs_LR.dscalar.nii
-		cp ${TemplateFolder}/MNINonLinear/fsaverage_LR32k/${TempateName}.thickness.32k_fs_LR.dscalar.nii  $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.thickness_MSMAll.32k_fs_LR.dscalar.nii
+		cp ${TemplateFolder}/MNINonLinear/${TemplateName}.MyelinMap_BC.164k_fs_LR.dscalar.nii $OutputFolder/Structure/Templates/S1200.MyelinMap_BC_MSMAll.164k_fs_LR.dscalar.nii
+		cp ${TemplateFolder}/MNINonLinear/${TemplateName}.sulc.164k_fs_LR.dscalar.nii $OutputFolder/Structure/Templates/S1200.sulc_MSMAll.164k_fs_LR.dscalar.nii
+		cp ${TemplateFolder}/MNINonLinear/fsaverage_LR32k/${TemplateName}.MyelinMap.32k_fs_LR.dscalar.nii  $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.MyelinMap_MSMAll.32k_fs_LR.dscalar.nii
+		cp ${TemplateFolder}/MNINonLinear/fsaverage_LR32k/${TemplateName}.MyelinMap_BC.32k_fs_LR.dscalar.nii  $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.MyelinMap_BC_MSMAll.32k_fs_LR.dscalar.nii
+		cp ${TemplateFolder}/MNINonLinear/fsaverage_LR32k/${TemplateName}.thickness.32k_fs_LR.dscalar.nii  $OutputFolder/Structure/Templates/fsaverage_LR32k/S1200.thickness_MSMAll.32k_fs_LR.dscalar.nii
 
 	fi
 
@@ -999,16 +1063,21 @@ elif [[ $Diff = ON  && $(imtest $StudyFolder/$Subject/T1w/Diffusion/data.nii.gz)
 		echo "<I>Scanning parameters for input volumes</I><BR>" >> $reporthtml
 		echo -e "Filename\tSeriesNum\tProtocol\tTR[ms]\tTE[ms]\tTI[ms]\tFA[deg]\tMatrix\tPixelSize[mm]\tSliceThickness[mm]\tPreScanNorm\tDwelltimeRead[sec]\tDwelltimePhase[sec]\tReadDir\tPhaseDir\tSliceDir\tTxAmp[V]\tParallelFactor\tMultiBandFactor" > $reportdir/scaninfo.tsv
 		for i in ${DmrilistPositive} ${DmrilistNegative} ; do
-			if [ ! -z "$(ls -loh --time-style=iso $(imglob -extension $StudyFolder/$Subject/RawData/$i) | awk '{print $9}')" ] ; then
-				scannum=$(echo $(basename $(ls -loh --time-style=iso $(imglob -extension $StudyFolder/$Subject/RawData/$i) | awk '{print $9}') | cut -d '_' -f 1))
-				if [[ ! -z $(cat $StudyFolder/$Subject/RawData/Seriesinfo.csv | awk 'BEGIN{FS=","} $1 == '$scannum' {print $15}' | grep NORM) ]] ; then
-					PreScanNorm=ON
-				else
-					PreScanNorm=OFF
+			link=$(ls -loh --time-style=iso $(imglob -extension "$StudyFolder/$Subject/RawData/$i") 2>/dev/null | awk '{print $NF}' | head -n 1) || link=""
+			if [ ! -z "$link" ] ; then
+				scannum="${link##*/}"
+				scannum="${scannum%%_*}"
+				if [[ "$scannum" =~ ^[0-9]+$ ]]; then
+					logMsg "Scan Num (diff): $scannum $i -> $link"
+					if [[ ! -z $(cat $StudyFolder/$Subject/RawData/Seriesinfo.csv | awk 'BEGIN{FS=","} $1 == '$scannum' {print $15}' | grep NORM) ]] ; then
+						PreScanNorm=ON
+					else
+						PreScanNorm=OFF
+					fi
+					pixsize=($(printf "%0.2f " $(cat $StudyFolder/$Subject/RawData/Seriesinfo.csv | awk 'BEGIN{FS=","} $1 == '$scannum' {print $12}')))
+					pixsize="${pixsize[0]:-NA}x${pixsize[1]:-NA}"
+					cat $StudyFolder/$Subject/RawData/Seriesinfo.csv | awk 'BEGIN{FS=","} $1 == '$scannum' {printf "%s\t%d\t%s\t%0.0f\t%0.2f\t%0.0f\t%d\t%s\t%s\t%0.2f\t%s\t%0.7f\t%0.7f\t%s\t%s\t%s\t%0.1f\t%d\t%d\n","'$i'",$1,$4,$7,$8,$9,$10,$11,"'${pixsize}'",$13,"'$PreScanNorm'",$16,$17,$18,$19,$20,$22,$23,$24}' >> $reportdir/scaninfo.tsv
 				fi
-				pixsize=($(printf "%0.2f " $(cat $StudyFolder/$Subject/RawData/Seriesinfo.csv | awk 'BEGIN{FS=","} $1 == '$scannum' {print $12}')))
-				pixsize="${pixsize[0]}x${pixsize[1]}"
-				cat $StudyFolder/$Subject/RawData/Seriesinfo.csv | awk 'BEGIN{FS=","} $1 == '$scannum' {printf "%s\t%d\t%s\t%0.0f\t%0.2f\t%0.0f\t%d\t%s\t%s\t%0.2f\t%s\t%0.7f\t%0.7f\t%s\t%s\t%s\t%0.1f\t%d\t%d\n","'$i'",$1,$4,$7,$8,$9,$10,$11,"'${pixsize}'",$13,"'$PreScanNorm'",$16,$17,$18,$19,$20,$22,$23,$24}' >> $reportdir/scaninfo.tsv
 			else
 				echo -e "$i\tNo link to\tprotocol.\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t" >> $reportdir/scaninfo.tsv
 			fi
@@ -1069,9 +1138,9 @@ elif [[ $Diff = ON  && $(imtest $StudyFolder/$Subject/T1w/Diffusion/data.nii.gz)
 		# B0 fieldmap and magnitude
 		fslmaths ${DistCorDir}/topup_Pos_Neg_b0_field.nii.gz -mul 6.28 ${DistCorDir}/TopupField.nii.gz
 		$FSLDIR/bin/applywarp -i ${DistCorDir}/TopupField.nii.gz -r ${DistCorDir}/../reg/T1w_acpc_dc_restore_brain.nii.gz --premat=${DistCorDir}/topup2str.mat -o $DistCorDir/FieldMap2T1w_acpc.nii.gz
-		$FSLDIR/bin/fslmaths $DistCorDir/FieldMap2T1w_acpc -thr 0 $DistCorDir/FieldMap2T1w_acpc_p
-		$FSLDIR/bin/fslmaths $DistCorDir/FieldMap2T1w_acpc -uthr 0 -mul -1 $DistCorDir/FieldMap2T1w_acpc_m
-		$FSLDIR/bin/overlay 1 0 $StudyFolder/$Subject/T1w/T1w_acpc.nii.gz -a $DistCorDir/FieldMap2T1w_acpc_p .0001 500 $DistCorDir/FieldMap2T1w_acpc_m .0001 500 $DistCorDir/FieldMap2T1w_acpc_overlay.nii.gz
+		$FSLDIR/bin/fslmaths $DistCorDir/FieldMap2T1w_acpc -thr 0 $DistCorDir/FieldMap2T1w_acpc_p.nii.gz
+		$FSLDIR/bin/fslmaths $DistCorDir/FieldMap2T1w_acpc -uthr 0 -mul -1 $DistCorDir/FieldMap2T1w_acpc_m.nii.gz
+		$FSLDIR/bin/overlay 1 0 $StudyFolder/$Subject/T1w/T1w_acpc.nii.gz -a $DistCorDir/FieldMap2T1w_acpc_p.nii.gz .0001 500 $DistCorDir/FieldMap2T1w_acpc_m.nii.gz .0001 500 $DistCorDir/FieldMap2T1w_acpc_overlay.nii.gz
 		$FSLDIR/bin/slicer $DistCorDir/FieldMap2T1w_acpc_overlay.nii.gz -a ${reportdir}/FieldMap2T1w_acpc_overlay.png
 		$FSLDIR/bin/applywarp -i $DistCorDir/hifib0.nii.gz -r ${DistCorDir}/../reg/T1w_acpc_dc_restore_brain.nii.gz --premat=${DistCorDir}/topup2str.mat -o $DistCorDir/Mag2T1w_acpc.nii.gz
 		${FSLDIR}/bin/slicer $DistCorDir/Mag2T1w_acpc.nii.gz $StudyFolder/$Subject/T1w/T1w_acpc.nii.gz -a ${reportdir}/MagT1w_acpc.png
@@ -1149,13 +1218,31 @@ elif [[ $Diff = ON  && $(imtest $StudyFolder/$Subject/T1w/Diffusion/data.nii.gz)
 	fi
 
 	if [ -e  $StudyFolder/$Subject/Diffusion/reg ] ; then
-		logMsg "Calculating mincost of FSL BBR"
-		echo -e "FSL_BBR_mincost\t$(flirt -in $StudyFolder/$Subject/Diffusion/data/nodif_brain.nii.gz -ref $StudyFolder/$Subject/Diffusion/reg/T1w_acpc_dc_restore_brain.nii.gz -schedule $FSLDIR/etc/flirtsch/measurecost1.sch -init  $StudyFolder/$Subject/Diffusion/reg/nodif2T1w_initII.mat -wmseg $StudyFolder/$Subject/Diffusion/reg/nodif2T1w_initII_fast_wmseg.nii.gz -cost bbr | head -1 | awk '{print $1}')" > $OutputFolder/Diffusion/nodif2T1w.mincost.tsv
+		# BBR に使う初期変換行列と白質セグメントの接頭辞を決める。
+		# ヒトのパイプラインは nodif を基準に登録するので nodif2T1w_initII* が
+		# 作られるが、NHP/マーモセットのパイプラインは dti_S0 を基準にするため
+		# dti_S02T1w_initII* になる。どちらも同じ拡散空間なので、-in の
+		# nodif_brain に対してどちらの初期行列・白質セグメントを使っても等価。
+		bbrprefix=""
+		for p in nodif2T1w_initII dti_S02T1w_initII ; do
+			if [[ -e $StudyFolder/$Subject/Diffusion/reg/${p}.mat && $(imtest $StudyFolder/$Subject/Diffusion/reg/${p}_fast_wmseg) = 1 ]] ; then
+				bbrprefix=$p ; break
+			fi
+		done
+		rm -f $OutputFolder/Diffusion/nodif2T1w.mincost.tsv
+		if [ -n "$bbrprefix" ] ; then
+			logMsg "Calculating mincost of FSL BBR (using ${bbrprefix})"
+			echo -e "FSL_BBR_mincost\t$(flirt -in $StudyFolder/$Subject/Diffusion/data/nodif_brain.nii.gz -ref $StudyFolder/$Subject/Diffusion/reg/T1w_acpc_dc_restore_brain.nii.gz -schedule $FSLDIR/etc/flirtsch/measurecost1.sch -init  $StudyFolder/$Subject/Diffusion/reg/${bbrprefix}.mat -wmseg $StudyFolder/$Subject/Diffusion/reg/${bbrprefix}_fast_wmseg.nii.gz -cost bbr | head -1 | awk '{print $1}')" > $OutputFolder/Diffusion/nodif2T1w.mincost.tsv
+		else
+			logMsg "WARNING: neither nodif2T1w_initII nor dti_S02T1w_initII (.mat + _fast_wmseg) found in Diffusion/reg; skipping FSL BBR mincost"
+		fi
 		if [ -e $StudyFolder/$Subject/Diffusion/reg/EPItoT1w.dat.mincost ] ; then
 			logMsg "Calculating mincost of FreeSurfer BBR"
 			echo -e "FreeSurfer_BBR_mincost\t$(cat $StudyFolder/$Subject/Diffusion/reg/EPItoT1w.dat.mincost | awk '{print $1}')" >> $OutputFolder/Diffusion/nodif2T1w.mincost.tsv
 		fi
-		cat $OutputFolder/Diffusion/nodif2T1w.mincost.tsv | tsv2html >> $reporthtml
+		if [ -s $OutputFolder/Diffusion/nodif2T1w.mincost.tsv ] ; then
+			cat $OutputFolder/Diffusion/nodif2T1w.mincost.tsv | tsv2html >> $reporthtml
+		fi
 	fi
 
 	echo "<a name=\"DiffusionQC\"><div id=\"DiffusionQC\"></div></a>" >> $reporthtml
@@ -1167,12 +1254,30 @@ elif [[ $Diff = ON  && $(imtest $StudyFolder/$Subject/T1w/Diffusion/data.nii.gz)
 		if [ $(imtest $StudyFolder/$Subject/Diffusion/eddy/eddy_unwarped_images) = 1 ] ; then
 			if [ ! -d  $StudyFolder/$Subject/Diffusion/QC ] ; then
 			#. /opt/rh/rh-python36/enable
-			eddy_quad $StudyFolder/$Subject/Diffusion/eddy/eddy_unwarped_images -i $StudyFolder/$Subject/Diffusion/eddy/index.txt -par $StudyFolder/$Subject/Diffusion/eddy/acqparams.txt -m $StudyFolder/$Subject/Diffusion/eddy/nodif_brain_mask.nii.gz -b $StudyFolder/$Subject/Diffusion/eddy/Pos_Neg.bvals -o $StudyFolder/$Subject/Diffusion/QC
+			# topup の fieldmap を -f で渡す。eddy_qc は Hz 単位を前提に
+			# dispField = field[Hz] x readout_time で変位[voxel]を出すため、
+			# TopupScale.sh --fout の出力 topup_Pos_Neg_b0_field (Hz) を渡すこと。
+			# TopupField.nii.gz は 6.283 を掛けた rad/sec (本スクリプト1118行や
+			# run_topupNHP.sh:53 と同じ換算) なので、渡すと 2pi 倍の過大値になる。
+			# 渡さないと eddy_qc は
+			# std_displacement を既定値 np.full(1,-1.0) のまま残し、qc.json の
+			# qc_vox_displ_std が [-1] (配列) になる。渡せば実値 (スカラー) になる。
+			# 変位[voxel] = field[Hz] x total readout time (acqparams 第4列)。
+			fieldopt=""
+			if [ $(imtest $StudyFolder/$Subject/Diffusion/topup/topup_Pos_Neg_b0_field) = 1 ] ; then
+				fieldopt="-f $StudyFolder/$Subject/Diffusion/topup/topup_Pos_Neg_b0_field"
+			fi
+			eddy_quad $StudyFolder/$Subject/Diffusion/eddy/eddy_unwarped_images -i $StudyFolder/$Subject/Diffusion/eddy/index.txt -par $StudyFolder/$Subject/Diffusion/eddy/acqparams.txt -m $StudyFolder/$Subject/Diffusion/eddy/nodif_brain_mask.nii.gz -b $StudyFolder/$Subject/Diffusion/eddy/Pos_Neg.bvals $fieldopt -o $StudyFolder/$Subject/Diffusion/QC
 			fi
 			cp -r $StudyFolder/$Subject/Diffusion/QC/* $OutputFolder/Diffusion/
-			CNR=$(for i in $(cat $StudyFolder/$Subject/QC/Diffusion/qc.json | jq -r "[.data_unique_bvals[]] | @csv" | sed -e 's/,/ /g'); do echo -n "Average CNR (b=$i [s/mm^2]),"; done)
-			echo "Average SNR(b=0 [s/mm2]),${CNR}Average abs. motion,Average rel. motion,Total outliers [%],Std Dev voxel displacement" > $StudyFolder/$Subject/QC/Diffusion/tmp.csv
-			for i in $(cat $StudyFolder/$Subject/QC/Diffusion/qc.json | jq -r  "[.qc_cnr_avg[],.qc_mot_abs,.qc_mot_rel,.qc_outliers_tot,.qc_vox_displ_std ] | @csv" | sed -e 's/,/ /g') ; do  echo $i | awk '{printf "%0.2f,",$1}'; done >> $OutputFolder/Diffusion/tmp.csv
+			CNR=$(for i in $(cat $StudyFolder/$Subject/QC/Diffusion/qc.json | jq -r "[.data_unique_bvals[]] | @csv" | sed -e 's/,/ /g'); do echo -n "CNR (b=$i [s/mm^2]),"; done)
+			echo "SNR (b=0 [s/mm2]),${CNR}Average abs. motion,Average rel. motion,Total outliers [%],Std Dev voxel displacement" > $StudyFolder/$Subject/QC/Diffusion/tmp.csv
+			# flatten: eddy_quad に -f (topup fieldmap) を渡さない場合、qc.json の
+			# qc_vox_displ_std が数値ではなく配列 [-1] になる (eddy_qc/QUAD/quad.py の
+			# 既定値 np.full(1,-1.0) がそのまま .tolist() される)。jq の @csv は入れ子
+			# 配列を受け付けずエラー終了するため、flatten を挟まないと jq が何も出力せず
+			# CNR/SNR/motion/outliers の値行がまるごと欠落する。
+			for i in $(cat $StudyFolder/$Subject/QC/Diffusion/qc.json | jq -r  "[.qc_cnr_avg[],.qc_mot_abs,.qc_mot_rel,.qc_outliers_tot,.qc_vox_displ_std ] | flatten | @csv" | sed -e 's/,/ /g') ; do  echo $i | awk '{printf "%0.2f,",$1}'; done >> $OutputFolder/Diffusion/tmp.csv
 			cat $OutputFolder/Diffusion/tmp.csv | awk -F, '{ for (i=1; i<=NF; i++)  { a[NR,i] = $i } } NF>p { p = NF }END {for(j=1; j<=p; j++) { str=a[1,j]; for(i=2; i<=NR; i++){ str=str"\t"a[i,j]; } printf "%s\n", str}}' > $OutputFolder/Diffusion/DiffusionQC.tsv
 			rm $OutputFolder/Diffusion/tmp.csv
 			wc=$(cat $OutputFolder/Diffusion/DiffusionQC.tsv | wc -l)
@@ -1340,7 +1445,7 @@ cat <<EOF > $reporthtml
   <img src="../../../.files/fsl-logo-x2.png" style="border:none; width:80px;height:50px;float:right;">
   <img src="../../../.files/freesurfer.png" style="border:none; width:100px;height:50px;float:right;">
   <B>HCP pipeline ICA-FIX REPORT</B><BR>
-  <FONT size=1>Version 0.1 &copy;2006-2021</FONT><BR><BR>
+  <FONT size=1>Version ${VERSION} &copy;${COPYRIGHT_YEAR}</FONT><BR><BR>
   <Font size=2>Output directory: ${StudyFolder}/${Subject}/QC/ICA-FIX/${rfmri}_hp${hp}.ica/report</FONT><BR><hr>
 EOF
 
@@ -1514,12 +1619,14 @@ elif [[ $Func = ON && $(ls $StudyFolder/$Subject/MNINonLinear/Results/*/*.ica/fi
 
 		  if [ "$(imtest $StudyFolder/$Subject/RawData/$i)" = 1 ] ; then
 			if [ "$(imtest $StudyFolder/$Subject/RawData/$(remove_ext $i).orig )" = 1 ] ; then
-				link=$(ls -loh --time-style=iso $(imglob -extension $StudyFolder/$Subject/RawData/$(remove_ext $i).orig) | awk '{print $NF}')
+				link=$(ls -loh --time-style=iso $(imglob -extension "$StudyFolder/$Subject/RawData/$(remove_ext $i).orig") 2>/dev/null | awk '{print $NF}' | head -n 1) || link=""
 			else
-				link=$(ls -loh --time-style=iso $(imglob -extension $StudyFolder/$Subject/RawData/$i) | awk '{print $NF}')
+				link=$(ls -loh --time-style=iso $(imglob -extension "$StudyFolder/$Subject/RawData/$i") 2>/dev/null | awk '{print $NF}' | head -n 1) || link=""
 			fi
 			if [ ! -z "$link" ] ; then
-				scannum=$(echo $(basename $link | cut -d '_' -f 1))
+				# scannum=$(echo $(basename $link | cut -d '_' -f 1))
+				scannum="${link##*/}"
+				scannum="${scannum%%_*}"
 				if [[ "$scannum" =~ ^[0-9]+$ ]]; then
 					logMsg "Scan Num: $scannum $i -> $link"
 					if [[ ! -z $(cat $StudyFolder/$Subject/RawData/Seriesinfo.csv | awk 'BEGIN{FS=","} $1 == '$scannum' {print $15}' | grep NORM) ]] ; then
@@ -1529,7 +1636,7 @@ elif [[ $Func = ON && $(ls $StudyFolder/$Subject/MNINonLinear/Results/*/*.ica/fi
 					fi
 					#echo $PreScanNorm
 					pixsize=($(printf "%0.2f " $(cat $StudyFolder/$Subject/RawData/Seriesinfo.csv | awk 'BEGIN{FS=","} $1 == '$scannum' {print $12}')))
-					pixsize="${pixsize[0]}x${pixsize[1]}"
+					pixsize="${pixsize[0]:-NA}x${pixsize[1]:-NA}"
 					cat $StudyFolder/$Subject/RawData/Seriesinfo.csv | awk 'BEGIN{FS=","} $1 == '$scannum' {printf "%s\t%d\t%s\t%0.0f\t%0.2f\t%0.0f\t%d\t%s\t%s\t%0.2f\t%s\t%0.7f\t%0.7f\t%s\t%s\t%s\t%0.1f\t%d\t%d\n","'$i'",$1,$4,$7,$8,$9,$10,$11,"'${pixsize}'",$13,"'$PreScanNorm'",$16,$17,$18,$19,$20,$22,$23,$24}' >> $reportdir/scaninfo.tsv
 				fi
 			else
@@ -1593,6 +1700,19 @@ elif [[ $Func = ON && $(ls $StudyFolder/$Subject/MNINonLinear/Results/*/*.ica/fi
 		cp $StudyFolder/$Subject/${fmriname}/Movement_RelativeRMS.txt ${WDfMRI}/Movement_RelativeRMS.txt
 		cp $StudyFolder/$Subject/${fmriname}/Movement_AbsoluteRMS_mean.txt ${WDfMRI}/Movement_AbsoluteRMS_mean.txt
 		cp $StudyFolder/$Subject/${fmriname}/Movement_RelativeRMS_mean.txt ${WDfMRI}/Movement_RelativeRMS_mean.txt
+		# FileList="Movement_Regressors.txt Movement_Regressors_dt.txt Movement_AbsoluteRMS.txt Movement_RelativeRMS.txt Movement_AbsoluteRMS_mean.txt Movement_RelativeRMS_mean.txt"
+		# for FileName in $FileList ; do
+		# 	SRC="$StudyFolder/$Subject/${fmriname}/${FileName}"
+		# 	DST="${WDfMRI}/${FileName}"
+			
+		# 	if [ -f "$SRC" ]; then
+		# 		cp "$SRC" "$DST"
+		# 	else
+		# 		echo "NaN" > "$DST"
+		# 		echo "Warning: $SRC not found. Created $DST with 'NaN'."
+		# 	fi
+		# done
+
 		cp $StudyFolder/$Subject/${fmriname}/MotionCorrection/${fmriname}_mc.ecclog ${WDfMRI}/${fmriname}_mc.ecclog
 
 		if [[ $(cat ${WDfMRI}/${fmriname}_mc.ecclog | grep "mat/MAT_") != "" ]] ; then
@@ -1680,9 +1800,9 @@ elif [[ $Func = ON && $(ls $StudyFolder/$Subject/MNINonLinear/Results/*/*.ica/fi
 
 			# B0 fieldmap and magnitude
 			$FSLDIR/bin/applywarp -i ${FieldMapDir}/TopupField.nii.gz -r $DistCorDir/T1w_acpc_dc_restore_brain.nii.gz --premat=$DistCorDir/fMRI2str.mat -o $DistCorDir/FieldMap2T1w_acpc.nii.gz
-			$FSLDIR/bin/fslmaths $DistCorDir/FieldMap2T1w_acpc.nii.gz -thr 0 $DistCorDir/FieldMap2T1w_acpc_p
-			$FSLDIR/bin/fslmaths $DistCorDir/FieldMap2T1w_acpc.nii.gz -uthr 0 -mul -1 $DistCorDir/FieldMap2T1w_acpc_m
-			$FSLDIR/bin/overlay 1 0 $StudyFolder/$Subject/T1w/T1w_acpc.nii.gz -a $DistCorDir/FieldMap2T1w_acpc_p .0001 500 $DistCorDir/FieldMap2T1w_acpc_m .0001 500 $DistCorDir/FieldMap2T1w_acpc_overlay.nii.gz
+			$FSLDIR/bin/fslmaths $DistCorDir/FieldMap2T1w_acpc.nii.gz -thr 0 $DistCorDir/FieldMap2T1w_acpc_p.nii.gz
+			$FSLDIR/bin/fslmaths $DistCorDir/FieldMap2T1w_acpc.nii.gz -uthr 0 -mul -1 $DistCorDir/FieldMap2T1w_acpc_m.nii.gz
+			$FSLDIR/bin/overlay 1 0 $StudyFolder/$Subject/T1w/T1w_acpc.nii.gz -a $DistCorDir/FieldMap2T1w_acpc_p.nii.gz .0001 500 $DistCorDir/FieldMap2T1w_acpc_m.nii.gz .0001 500 $DistCorDir/FieldMap2T1w_acpc_overlay.nii.gz
 			$FSLDIR/bin/slicer $DistCorDir/FieldMap2T1w_acpc_overlay.nii.gz -a ${reportdir}/FieldMap2T1w_acpc_overlay.png
 			$FSLDIR/bin/applywarp -i ${FieldMapDir}/Magnitude.nii.gz -r $DistCorDir/T1w_acpc_dc_restore_brain.nii.gz --premat=$DistCorDir/fMRI2str.mat -o $DistCorDir/Mag2T1w_acpc.nii.gz
 			${FSLDIR}/bin/slicer $DistCorDir/Mag2T1w_acpc.nii.gz $StudyFolder/$Subject/T1w/T1w_acpc.nii.gz -a ${reportdir}/MagT1w_acpc.png
@@ -1954,9 +2074,9 @@ for DIR in Structure Function Diffusion; do
 	fi
 done
 cat <<EOF >> $reporthtml
-    </div>
+   </div>
   </center>
-  <iframe frameborder="0" style="overflow:hidden; height:100%; width:100%" class="fullheight" name="Change" scrolling="auto"></iframe>
+  <iframe frameborder="0" name="Change" scrolling="auto" style="border:0; width:100%; height: calc(100vh - 58px); overflow:auto;"></iframe>
  </BODY>
 </HTML>
 EOF
@@ -1987,9 +2107,9 @@ cat <<EOF > $reporthtml
   <img src=".files/fsl-logo-x2.png" style="border:none; width:80px;height:50px;float:right;">
   <img src=".files/freesurfer.png" style="border:none; width:100px;height:50px;float:right;">
   <B>HCPPIPE QC REPORT</B><BR>
-  <FONT size=1>Version 0.1 &copy;2006-2021</FONT><BR>
+  <FONT size=1>Version ${VERSION} &copy;${COPYRIGHT_YEAR}</FONT><BR>
   <Font size=2>Output directory: $StudyFolder/$Subject/QC </FONT><BR>
-  <iframe src="./report.html" frameborder="0" style="overflow:hidden; height:100%; width:100%" class="fullheight" scrolling="no"></iframe>
+  <iframe src="./report.html" frameborder="0" scrolling="no" style="border:0; width: 100%; height: calc(100vh - 68px); overflow:hidden;"></iframe>
  </BODY>
 </HTML>
 EOF
@@ -2129,7 +2249,7 @@ WriteMetrics () {
 	# Metric definitions (kept consistent with hcppipe_gqc varname rules)
 	struct_varsets="brainmask_fs_MEAN@T1w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T2w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T1wmulT2w_stats.tsv@2@-x brainmask_fs_MEAN@T1wDividedByT2w_stats.tsv@2@-x FSL_BBR_mincost@T2wToT1w.mincost.tsv@2@-x FreeSurfer_BBR_mincost@T2wToT1w.mincost.tsv@2@-x T1wmulT2w_brain_norm_modulate_mask_ratio@T1wmulT2w_brain_norm_modulate_stats.tsv@2@-x Q2@BiasField_acpc_dc_stats.tsv@2@-x IQR@BiasField_acpc_dc_stats.tsv@2@-x IQR@Fieldmap_stats.tsv@2@-x Myelin_Biasfield_Q2@SurfaceStats.tsv@2@-x Myelin_Biasfield_IQR@SurfaceStats.tsv@2@-x Myelin_Biasfield_Asymmetry_Q2@SurfaceStats.tsv@2@-x Myelin_Biasfield_Asymmetry_IQR@SurfaceStats.tsv@2@-x MSMSulc_areal_distortion_IQR@SurfaceStats.tsv@2@-x MSMAll_areal_distortion_IQR@SurfaceStats.tsv@2@-x MyelinMap_similarity@SurfaceStats.tsv@2@-x MyelinMap_BC_similarity@SurfaceStats.tsv@2@-x thickness_similarity@SurfaceStats.tsv@2@-x SDS5@SurfaceStats.tsv@2@-c Q2@NonlinearRegJacobians_stats.tsv@2@-x IQR@NonlinearRegJacobians_stats.tsv@2@-x"
 	func_varsets="Movement_AbsoluteRMS_mean@Movement_AbsoluteRMS_mean.txt@1@1@-x Movement_RelativeRMS_mean@Movement_RelativeRMS_mean.txt@1@1@-x Q2@Movement_Regressors_FD_stats.txt@2@3@-x PercOutlier@ICA-FIX_stats.tsv@2@3@-x Dvar-SvarDivergence@ICA-FIX_stats.tsv@3@3@-x AutocorrCoeffMedian@ICA-FIX_stats.tsv@4@3@-x FSL_BBR@EPI2T1w.mincost.tsv@2@1@-x FreeSurfer_BBR@EPI2T1w.mincost.tsv@2@2@-x IQR@Fieldmap_stats.tsv@2@7@-x NumSignal@RestingStateStats.tsv@2@2@-c NumNoise@RestingStateStats.tsv@2@3@-c NumTotal@RestingStateStats.tsv@2@4@-c CNR@RestingStateStats.tsv@2@16@-x HighPassVarRatio@RestingStateStats.tsv@2@25@-x MotionVar@RestingStateStats.tsv@2@11@-x StructNoiseVar@RestingStateStats.tsv@2@12@-x BOLDVar@RestingStateStats.tsv@2@13@-x UnstructNoiseVar@RestingStateStats.tsv@2@14@-x TSNR@RestingStateStats.tsv@2@8@-x MotionVarRatio@RestingStateStats.tsv@2@26@-x StructNoiseVarRatio@RestingStateStats.tsv@2@27@-x BOLDVarRatio@RestingStateStats.tsv@2@28@-x UnstructNoiseVarRatio@RestingStateStats.tsv@2@29@-x"
-	diff_varsets="SNR@DiffusionQC.tsv@2@-x CNR@DiffusionQC.tsv@2@-x motion@DiffusionQC.tsv@2@-x outliers@DiffusionQC.tsv@2@-x displacement@DiffusionQC.tsv@2@-x IQR@Fieldmap_stats.tsv@2@-x Fiber_1_ratio@TractographyQC.tsv@2@-x Fiber_2_ratio@TractographyQC.tsv@2@-x Fiber_3_ratio@TractographyQC.tsv@2@-x Fiber_1_uncertainty@TractographyQC.tsv@2@-x Fiber_2_uncertainty@TractographyQC.tsv@2@-x Fiber_3_uncertainty@TractographyQC.tsv@2@-x FSL_BBR_mincost@nodif2T1w.mincost.tsv@2@-x FreeSurfer_BBR_mincost@nodif2T1w.mincost.tsv@2@-x"
+	diff_varsets="SNR@DiffusionQC.tsv@2@-x CNR@DiffusionQC.tsv@2@-x abs.@DiffusionQC.tsv@2@-x@abs_motion rel.@DiffusionQC.tsv@2@-x@rel_motion outliers@DiffusionQC.tsv@2@-x displacement@DiffusionQC.tsv@2@-x IQR@Fieldmap_stats.tsv@2@-x Fiber_1_ratio@TractographyQC.tsv@2@-x Fiber_2_ratio@TractographyQC.tsv@2@-x Fiber_3_ratio@TractographyQC.tsv@2@-x Fiber_1_uncertainty@TractographyQC.tsv@2@-x Fiber_2_uncertainty@TractographyQC.tsv@2@-x Fiber_3_uncertainty@TractographyQC.tsv@2@-x FSL_BBR_mincost@nodif2T1w.mincost.tsv@2@-x FreeSurfer_BBR_mincost@nodif2T1w.mincost.tsv@2@-x"
 
 	# Build header
 	metrics=""
@@ -2144,7 +2264,9 @@ WriteMetrics () {
 		varkey=$(echo "$varset" | cut -d '@' -f 1)
 		file=$(echo "$varset" | cut -d '@' -f 2)
 		filebase="${file%.tsv}"; filebase="${filebase%.txt}"
-		varname="dMRI_${filebase}_${varkey}"
+		# 5番目のフィールドがあれば変数名として使う (grepキーと表示名の分離)
+		vname=$(echo "$varset" | cut -d '@' -f 5); [ -n "$vname" ] || vname="$varkey"
+		varname="dMRI_${filebase}_${vname}"
 		metrics="${metrics}	${varname}"
 	done
 	for varset in $func_varsets ; do
