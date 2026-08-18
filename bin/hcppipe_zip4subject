@@ -38,7 +38,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 usage() {
   cat <<'EOF'
 Usage:
-  Zip4subject.sh -i Subject -o OUTDIR -V SUFFIX <Run Option> [-j N] [-Q QUEUE] [-L LOGDIR] [--runlocal]
+  hcppipe_zip4subject -i Subject -o OUTDIR -V SUFFIX <Run Option> [-j N] [-Q QUEUE] [-L LOGDIR] [--runlocal]
 
 Options:
   -i Subject  Input Subject (may be symlinks)
@@ -60,7 +60,7 @@ Options:
   --runlocal  Run locally (do NOT submit fsl_sub). If omitted -> submit with fsl_sub.
 
 Example:
-  Zip4subject.sh -i /mnt/proj/H_BMBHBM_2023/BMBHBM/TS/HARP/<Subject> \
+  hcppipe_zip4subject -i /mnt/proj/H_BMBHBM_2023/BMBHBM/TS/HARP/<Subject> \
                  -o /mnt/proj/ZIP_drive/BMBHBM/Release/H_BMBHBM_2023/BMBHBM/TS/<Project> \
                  -V v2 -s
 
