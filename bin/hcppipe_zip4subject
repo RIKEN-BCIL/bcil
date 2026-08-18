@@ -1,0 +1,544 @@
+#!/usr/bin/env bash
+
+# Packages an HCP-pipeline subject's outputs (Structure/Diffusion/Function/QC/raw data)
+# into zip archives via 7-Zip, using JSON-defined file-pattern templates.
+
+# Copyright (c) 2026
+# All rights reserved.
+
+# Naofumi Yoshida, Takuya Hayashi, RIKEN Brain Connectomics Imaging Laboratory
+
+# ver 0.1 August 17th 2026
+
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+# * Neither the name of this project nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  Zip4subject.sh -i Subject -o OUTDIR -V SUFFIX <Run Option> [-j N] [-Q QUEUE] [-L LOGDIR] [--runlocal]
+
+Options:
+  -i Subject  Input Subject (may be symlinks)
+  -o OUTDIR   Output dir (Packed subject will be created under here)
+  -s          Run Structure zip packaging ( -> OUTDIR/ID_struc_<V>.zip)
+              164k resolution: struc_highres if MSMAll files exist, else struc_highres_sulc.
+  -d          Run Diffusion zip packaging ( -> OUTDIR/ID_diff_<V>.zip)
+  -f          Run Function zip packaging ( -> OUTDIR/ID_func_<V>.zip)
+  -q          Run QC zip packaging ( -> OUTDIR/ID_qc_<V>.zip)
+  -r          Run RawData zip packing ( -> OUTDIR/ID_rawdata_<V>.zip)
+  -m MESH     Extra LowRes mesh size(s) used for ${LowResMesh} in the Struc LowRes
+              template list (zip4subject_fileList.json -> .templates.struc_lowres)
+              only. Added to the default 32k (32 is always included).
+              Can be repeated or comma-separated, e.g. -m 10 -m 32 or -m 10,32.
+  -V SUFFIX   Version suffix for output zip (e.g. v2, v2.1). Required.
+  -j N        Threads for 7z/7zz (-mmtN). Default: 1
+  -L LOGDIR   Log dir. Default: <Input_Subject>/logs/ZIP_logs
+  -Q QUEUE    SGE queue name for fsl_sub (e.g., short.q, long.q). Default: ${QUE:-short.q}
+  --runlocal  Run locally (do NOT submit fsl_sub). If omitted -> submit with fsl_sub.
+
+Example:
+  Zip4subject.sh -i /mnt/proj/H_BMBHBM_2023/BMBHBM/TS/HARP/<Subject> \
+                 -o /mnt/proj/ZIP_drive/BMBHBM/Release/H_BMBHBM_2023/BMBHBM/TS/<Project> \
+                 -V v2 -s
+
+TEMPLATE_JSON="$SCRIPT_DIR/../bcilconf/zip4subject_fileList.json" (require jq)
+  categories: .templates.struc / .templates.struc_highres / .templates.struc_highres_sulc
+              .templates.struc_lowres / .templates.diff / .templates.func
+              .templates.raw / .templates.qc
+
+EOF
+}
+
+# -------------------------
+# Defaults
+# -------------------------
+IN_DIR=""
+OUT_DIR=""
+DO_QC=0
+DO_Struc=0
+DO_Diff=0
+DO_Func=0
+DO_Raw=0
+LOWRES_MESHES=("32")
+MMT=1
+RUNLOCAL=0
+QUEUE="${QUE:-short.q}"
+LOGDIR=""
+VERSION_SUFFIX=""
+
+# -------------------------
+# Parse args (support long option)
+# -------------------------
+args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --runlocal) RUNLOCAL=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) args+=("$1"); shift ;;
+  esac
+done
+set -- "${args[@]:-}"
+
+while getopts ":i:o:sdfqrm:j:Q:L:V:" opt; do
+  case "$opt" in
+    i) IN_DIR="$OPTARG" ;;
+    o) OUT_DIR="$OPTARG" ;;
+    s) DO_Struc=1 ;;
+    d) DO_Diff=1 ;;
+    f) DO_Func=1 ;;
+    q) DO_QC=1 ;;
+    r) DO_Raw=1 ;;
+    m)
+      IFS=',' read -ra _m_vals <<< "$OPTARG"
+      for _m_val in "${_m_vals[@]}"; do
+        _m_val="${_m_val// /}"
+        [[ -n "$_m_val" ]] && LOWRES_MESHES+=("$_m_val")
+      done
+      ;;
+    j) MMT="$OPTARG" ;;
+    Q) QUEUE="$OPTARG" ;;
+    L) LOGDIR="$OPTARG" ;;
+    V) VERSION_SUFFIX="$OPTARG" ;;
+    :) echo "ERROR: -$OPTARG needs an argument" >&2; usage; exit 2 ;;
+    \?) echo "ERROR: Unknown option -$OPTARG" >&2; usage; exit 2 ;;
+  esac
+done
+
+mapfile -t LOWRES_MESHES < <(printf '%s\n' "${LOWRES_MESHES[@]}" | awk '!seen[$0]++')
+
+if [[ -z "${IN_DIR}" || -z "${OUT_DIR}" ]]; then
+  echo "ERROR: -i and -o are required" >&2
+  usage
+  exit 2
+fi
+
+if [[ -z "${VERSION_SUFFIX}" ]]; then
+  echo "ERROR: -V SUFFIX is required (e.g. -V v2, -V v2.1)" >&2
+  usage
+  exit 2
+fi
+
+if (( DO_QC==0 && DO_Struc==0 && DO_Diff==0 && DO_Func==0 && DO_Raw==0 )); then
+  echo "ERROR: specify at least one action. Use -s and/or -d and/or -f and/or -q and/or -r" >&2
+  usage
+  exit 2
+fi
+
+# -------------------------
+# 7zip
+# -------------------------
+# Prefer "7zz" (the standalone binary name used by recent official 7-Zip
+# Linux builds); fall back to "7z" if "7zz" is missing, or -- when RawData
+# (-r) needs a recent build for -snl -- if "7zz" is too old.
+REQUIRED_7Z_VERSION="25.01"
+REQUIRED_7Z_DATE="2025-08-03"
+
+seven_zip_version() {
+  local bin="$1" ver_line
+  ver_line="$("$bin" 2>&1 | grep -m1 '^7-Zip' || true)"
+  printf '%s' "$ver_line" | grep -oE '[0-9]+\.[0-9]+' | head -n1
+}
+
+seven_zip_new_enough() {
+  local ver_num="$1" ver_newest
+  [[ -n "$ver_num" ]] || return 1
+  ver_newest="$(printf '%s\n%s\n' "$ver_num" "$REQUIRED_7Z_VERSION" | sort -V | tail -n1)"
+  [[ "$ver_newest" == "$ver_num" ]]
+}
+
+SEVEN_ZIP=""
+for _cand in 7zz 7z; do
+  command -v "$_cand" >/dev/null 2>&1 || continue
+  if (( DO_Raw )); then
+    seven_zip_new_enough "$(seven_zip_version "$_cand")" || continue
+  fi
+  SEVEN_ZIP="$_cand"
+  break
+done
+
+if [[ -z "$SEVEN_ZIP" ]]; then
+  if (( DO_Raw )); then
+    echo "ERROR: no usable 7-Zip binary found (tried: 7zz, 7z)." >&2
+    echo "Reason: older 7z builds cannot pack symbolic links as relative links (they dereference/copy the target instead), which RawData packing relies on." >&2
+    echo "Required: 7-Zip $REQUIRED_7Z_VERSION or later ($REQUIRED_7Z_DATE)." >&2
+    echo "Please install the latest 7-Zip from https://www.7-zip.org/" >&2
+  else
+    echo "ERROR: no 7-Zip binary found in PATH (tried: 7zz, 7z)" >&2
+  fi
+  exit 2
+fi
+
+SEVEN_ZIP_OPTS="a -tzip -mm=Deflate -mx=5 -mmt=$MMT"
+SEVEN_ZIP_OPTS_RAW="$SEVEN_ZIP_OPTS -snl"
+
+# -------------------------
+# ZIP template lists (single JSON source of truth)
+# -------------------------
+TEMPLATE_DIR="$SCRIPT_DIR/../bcilconf"
+TEMPLATE_JSON="$TEMPLATE_DIR/zip4subject_fileList.json"
+
+command -v jq >/dev/null 2>&1 || { echo "ERROR: jq not found in PATH (required to read $TEMPLATE_JSON)" >&2; exit 2; }
+[[ -f "$TEMPLATE_JSON" ]] || { echo "ERROR: template JSON not found: $TEMPLATE_JSON" >&2; exit 2; }
+
+# Working dir for the flat pattern lists extracted from zip4subject_fileList.json; each
+# category's ${vars} placeholders are still expanded later via envsubst,
+# exactly as when they lived in separate ListXxx.txt files.
+TMP_TEMPLATE_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_TEMPLATE_DIR"' EXIT
+
+extract_template_list() {
+  local key="$1" out="$2"
+  jq -e ".templates[\"$key\"].patterns" "$TEMPLATE_JSON" >/dev/null 2>&1 \
+    || { echo "ERROR: template category '$key' not found in $TEMPLATE_JSON" >&2; exit 2; }
+  jq -r ".templates[\"$key\"].patterns[]" "$TEMPLATE_JSON" > "$out"
+}
+
+STRUC_LIST_TEMPLATE="$TMP_TEMPLATE_DIR/struc.list"
+STRUC_HIGHRES_LIST_TEMPLATE="$TMP_TEMPLATE_DIR/struc_highres.list"
+STRUC_HIGHRES_SULC_LIST_TEMPLATE="$TMP_TEMPLATE_DIR/struc_highres_sulc.list"
+STRUC_LOWRES_LIST_TEMPLATE="$TMP_TEMPLATE_DIR/struc_lowres.list"
+DIFF_LIST_TEMPLATE="$TMP_TEMPLATE_DIR/diff.list"
+FUNC_LIST_TEMPLATE="$TMP_TEMPLATE_DIR/func.list"
+RAW_LIST_TEMPLATE="$TMP_TEMPLATE_DIR/raw.list"
+QC_LIST_TEMPLATE="$TMP_TEMPLATE_DIR/qc.list"
+
+if (( DO_Struc )); then
+  extract_template_list struc "$STRUC_LIST_TEMPLATE"
+  extract_template_list struc_highres "$STRUC_HIGHRES_LIST_TEMPLATE"
+  extract_template_list struc_highres_sulc "$STRUC_HIGHRES_SULC_LIST_TEMPLATE"
+  extract_template_list struc_lowres "$STRUC_LOWRES_LIST_TEMPLATE"
+fi
+(( DO_Diff )) && extract_template_list diff "$DIFF_LIST_TEMPLATE"
+(( DO_Func )) && extract_template_list func "$FUNC_LIST_TEMPLATE"
+(( DO_Raw  )) && extract_template_list raw  "$RAW_LIST_TEMPLATE"
+(( DO_QC   )) && extract_template_list qc   "$QC_LIST_TEMPLATE"
+
+# Set IN, OUT Dir
+IN_DIR="${IN_DIR%/}"
+OUT_DIR="${OUT_DIR%/}"
+
+if [[ ! -d "$OUT_DIR" ]]; then
+  echo "ERROR: OUTDIR does not exist: $OUT_DIR" >&2
+  exit 2
+fi
+
+# Return "realpath" if possible; fallback to readlink -f; fallback to original.
+realpath_safe() {
+  local p="$1"
+  if command -v realpath >/dev/null 2>&1; then
+    realpath "$p"
+  else
+    readlink -f "$p" 2>/dev/null || echo "$p"
+  fi
+}
+
+# -------------------------
+# Make jobscript and Run
+# -------------------------
+
+# Append `envsubst VARSPEC >> "$listfile" <<'DELIM' ... DELIM` to $jobscript,
+# embedding the literal (un-expanded) contents of $src directly in the job
+# script. This is required because TMP_TEMPLATE_DIR (where $src lives) is
+# removed by the EXIT trap as soon as THIS (submitting) script exits, which
+# happens right after `fsl_sub` returns -- well before the queued job
+# actually runs. Referencing $src by path at job run time would fail once
+# the job finally executes (envsubst: No such file or directory).
+append_embedded_envsubst() {
+  local src="$1" varspec="$2" delim="$3" indent="${4:-}"
+  {
+    printf '%senvsubst '\''%s'\'' >> "$listfile" <<'\''%s'\''\n' "$indent" "$varspec" "$delim"
+    cat "$src"
+    printf '\n%s\n' "$delim"
+  } >> "$jobscript"
+}
+
+zip_make_and_run() {
+
+local seven_zip_opts="$SEVEN_ZIP_OPTS"
+if [[ "$prefix" == "Raw" ]]; then
+  seven_zip_opts="$SEVEN_ZIP_OPTS_RAW"
+fi
+
+local lowres_info="(not used for this template)"
+[[ -n "${lowres_template:-}" ]] && lowres_info="${LOWRES_MESHES[*]}"
+
+cat > "$jobscript" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "[START] \$(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo "[HOST] \$(hostname)"
+echo "[SUBJECT] $ID"
+echo "[TEMPLATE] $template"
+echo "[LowResMesh] $lowres_info"
+echo "[Input(Subject)] $resolved"
+echo "[OutDir] $(dirname -- "$outzip")"
+
+cd $(printf '%q' "$(dirname "$resolved")")
+
+command -v envsubst >/dev/null 2>&1 || { echo "ERROR: envsubst not found"; exit 2; }
+
+Subject="$ID"
+export Subject
+
+listfile="$LOGDIR/${ID}_${prefix}.list"
+: > "\$listfile"
+EOF
+
+append_embedded_envsubst "$template" '${Subject}' "ZIP4SUBJECT_${prefix}_PATTERN_EOF"
+
+if [[ -n "${lowres_template:-}" ]]; then
+cat >> "$jobscript" <<EOF
+
+echo "[LOWRES_TEMPLATE] $lowres_template"
+LowResMeshes=($(printf '%q ' "${LOWRES_MESHES[@]}"))
+for LowResMesh in "\${LowResMeshes[@]}"; do
+  export LowResMesh
+EOF
+append_embedded_envsubst "$lowres_template" '${Subject} ${LowResMesh}' "ZIP4SUBJECT_${prefix}_LOWRES_PATTERN_EOF" '  '
+cat >> "$jobscript" <<EOF
+done
+EOF
+fi
+
+cat >> "$jobscript" <<EOF
+sed -i '/^[[:space:]]*\$/d; /^[[:space:]]*#/d' "\$listfile"
+
+expanded_list="$LOGDIR/${ID}_${prefix}.expanded.list"
+: > "\$expanded_list"
+
+missing=0
+found_any=0
+shopt -s nullglob
+
+while IFS= read -r pattern; do
+  pattern=\$(printf "%s" "\$pattern" | tr -d "\r")
+  [ -z "\$pattern" ] && continue
+
+  if echo "\$pattern" | grep -q "[*?[]"; then
+    matches=( \$pattern )
+    if [ "\${#matches[@]}" -gt 0 ]; then
+      for f in "\${matches[@]}"; do
+        if [ -e "\$f" ]; then
+          printf '%s\n' "\$f" >> "\$expanded_list"
+          found_any=1
+        else
+          echo "[MISSING] \$f"
+          missing=1
+        fi
+      done
+    else
+      echo "[MISSING] \$pattern"
+      missing=1
+    fi
+  else
+    if [ -e "\$pattern" ]; then
+      printf '%s\n' "\$pattern" >> "\$expanded_list"
+      found_any=1
+    else
+      echo "[MISSING] \$pattern"
+      missing=1
+    fi
+  fi
+done < "\$listfile"
+
+tmp="\${expanded_list}.tmp"
+awk '!seen[\$0]++' "\$expanded_list" > "\$tmp"
+mv -f "\$tmp" "\$expanded_list"
+
+echo "[LIST_EXPANDED] ----"
+if [ -s "\$expanded_list" ]; then
+  nl -ba "\$expanded_list"
+else
+  echo "(empty)"
+fi
+echo "[LIST_EXPANDED] ----"
+
+if [ "\$found_any" -eq 0 ]; then
+  echo "[INFO] No existing files matched; skip zip"
+  rm -f "\$listfile"
+  exit 0
+fi
+
+if [ "\$missing" -ne 0 ]; then
+  echo "[WARN] Missing files detected (zip will continue with existing files only)"
+fi
+
+rm -f $(printf '%q' "$outzip")
+
+echo "[COMMAND] $(printf '%q' "$SEVEN_ZIP") $seven_zip_opts $(printf '%q' "$outzip") @\"\$expanded_list\""
+
+set +e
+$(printf '%q' "$SEVEN_ZIP") $seven_zip_opts $(printf '%q' "$outzip") @"\$expanded_list"
+ret=\$?
+set -e
+
+rm -f "\$listfile"
+
+echo "[END] \$(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo "[EXIT_CODE] \$ret"
+exit \$ret
+EOF
+  chmod +x "$jobscript"
+
+  if (( RUNLOCAL )); then
+    bash "$jobscript"
+    echo "[OK] packed (local): $outzip"
+  else
+    fsl_sub -q "$QUEUE" -l "$LOGDIR" -N "${prefix}ZIP" "$jobscript"
+    echo "[SUBMITTED] ${prefix}ZIP job for $ID -> $outzip"
+  fi
+}
+
+# -------------------------
+# Zip option
+# -------------------------
+entry="$IN_DIR"
+ID="$(basename "$entry")"
+
+if [[ ! -d "$entry" ]]; then
+  echo "ERROR: -i is not a directory: $entry" >&2
+  exit 2
+fi
+
+resolved="$(realpath_safe "$entry")"
+
+if [[ ! -d "$resolved" ]]; then
+  echo "ERROR: resolved subject dir not found: $resolved" >&2
+  exit 2
+fi
+
+if [[ -n "${LOGDIR}" ]]; then
+  if [[ ! -d "$LOGDIR" ]]; then
+    echo "ERROR: specified LOGDIR does not exist: $LOGDIR" >&2
+    exit 2
+  fi
+else
+  LOGDIR="$resolved/logs/ZIP_logs"
+  echo "Log Directory set to Default.:${LOGDIR}"
+  mkdir -p "$LOGDIR"
+fi
+
+echo "[INFO] Input(subject): $(realpath_safe "$entry")"
+echo "[INFO] OutDir        : $(realpath_safe "$OUT_DIR")"
+echo "[INFO] LogDir        : $(realpath_safe "$LOGDIR")"
+echo "[INFO] TemplateDir   : $(realpath_safe "$TEMPLATE_DIR")"
+echo "[INFO] 7zip cmd      : $SEVEN_ZIP"
+echo "[INFO] 7zip opts     : ${SEVEN_ZIP_OPTS:-<none>}"
+if (( DO_Raw )); then
+  echo "[INFO] 7zip opts (Raw): ${SEVEN_ZIP_OPTS_RAW}"
+fi
+echo "[INFO] Queue: ${QUEUE}"
+echo "[INFO] Version suffix: ${VERSION_SUFFIX}"
+echo "[INFO] LowResMesh(es): ${LOWRES_MESHES[*]}"
+
+# -------------------------
+# Structure
+# -------------------------
+if (( DO_Struc )); then
+  # Pick struc_highres vs struc_highres_sulc: use struc_highres if any file
+  # directly under <Subject>/MNINonLinear/ (non-recursive) has "MSMAll" in
+  # its name; otherwise fall back to struc_highres_sulc.
+  mnl_dir="$resolved/MNINonLinear"
+  msmall_found=0
+  if [[ -d "$mnl_dir" ]]; then
+    for f in "$mnl_dir"/*MSMAll*; do
+      [[ -f "$f" ]] && { msmall_found=1; break; }
+    done
+  fi
+
+  if (( msmall_found )); then
+    struc_highres_choice="struc_highres"
+    STRUC_HIGHRES_CHOSEN_TEMPLATE="$STRUC_HIGHRES_LIST_TEMPLATE"
+  else
+    struc_highres_choice="struc_highres_sulc"
+    STRUC_HIGHRES_CHOSEN_TEMPLATE="$STRUC_HIGHRES_SULC_LIST_TEMPLATE"
+  fi
+  echo "[INFO] Struc highres template: $struc_highres_choice (MSMAll file found in $mnl_dir: $msmall_found)"
+
+  STRUC_MERGED_LIST_TEMPLATE="$TMP_TEMPLATE_DIR/struc_merged.list"
+  cat "$STRUC_LIST_TEMPLATE" "$STRUC_HIGHRES_CHOSEN_TEMPLATE" > "$STRUC_MERGED_LIST_TEMPLATE"
+
+  outzip="$OUT_DIR/${ID}_struc_${VERSION_SUFFIX}.zip"
+  jobscript="$LOGDIR/${ID}_zip_Struc.sh"
+  template="$STRUC_MERGED_LIST_TEMPLATE"
+  lowres_template="$STRUC_LOWRES_LIST_TEMPLATE"
+  prefix="Struc"
+
+  zip_make_and_run
+fi
+
+# -------------------------
+# Diffusion
+# -------------------------
+if (( DO_Diff )); then
+  outzip="$OUT_DIR/${ID}_diff_${VERSION_SUFFIX}.zip"
+  jobscript="$LOGDIR/${ID}_zip_Diff.sh"
+  template="$DIFF_LIST_TEMPLATE"
+  lowres_template=""
+  prefix="Diff"
+
+  zip_make_and_run
+fi
+
+# -------------------------
+# Function
+# -------------------------
+if (( DO_Func )); then
+  outzip="$OUT_DIR/${ID}_func_${VERSION_SUFFIX}.zip"
+  jobscript="$LOGDIR/${ID}_zip_Func.sh"
+  template="$FUNC_LIST_TEMPLATE"
+  lowres_template=""
+  prefix="Func"
+
+  zip_make_and_run
+fi
+
+# -------------------------
+# RawData
+# -------------------------
+if (( DO_Raw )); then
+  outzip="$OUT_DIR/${ID}_rawdata_${VERSION_SUFFIX}.zip"
+  jobscript="$LOGDIR/${ID}_zip_Raw.sh"
+  template="$RAW_LIST_TEMPLATE"
+  lowres_template=""
+  prefix="Raw"
+
+  zip_make_and_run
+fi
+
+# -------------------------
+# QC
+# -------------------------
+if (( DO_QC )); then
+  outzip="$OUT_DIR/${ID}_qc_${VERSION_SUFFIX}.zip"
+  jobscript="$LOGDIR/${ID}_zip_QC.sh"
+  template="$QC_LIST_TEMPLATE"
+  lowres_template=""
+  prefix="QC"
+
+  zip_make_and_run
+fi
