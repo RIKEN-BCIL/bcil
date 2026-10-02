@@ -1,2 +1,6 @@
-bin/compiled/
 *.bak_*
+# mcc build metadata (the runnable binaries under bin/compiled/ are tracked on purpose)
+bin/compiled/mccExcludedFiles.log
+bin/compiled/unresolvedSymbols.txt
+bin/compiled/includedSupportPackages.txt
+bin/compiled/requiredMCRProducts.txt
