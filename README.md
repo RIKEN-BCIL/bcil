@@ -28,6 +28,38 @@ export PATH=[unzipped directory]/bin:$PATH
 ```
 5. Run commands in the directory, [unzipped directory]/bin
 
+### Optional: run the QC plots without a MATLAB license (MATLAB Runtime)
+
+`hcppipe_qc` renders two of its figures (motion/greyordinate/DVARS plot and the
+time-series plot) with MATLAB. By default these run in a live MATLAB session,
+which needs a MATLAB license at run time. Alternatively you can run them on the
+free MATLAB Runtime (MCR) with prebuilt standalone binaries, so **no MATLAB
+license is consumed** when running `hcppipe_qc`.
+
+Prebuilt binaries for **Linux x86_64 / MCR R2022b (v9.13)** are shipped in
+`bin/compiled/`. On that platform you can skip straight to step 2. To run on a
+different OS or MCR version, rebuild first (step 1).
+
+1. (Only if you need to (re)build — e.g. other OS/MCR version.) Needs MATLAB with
+   **MATLAB Compiler** and **Statistics and Machine Learning Toolbox** at build
+   time; the `mcc` version must match the MCR version you will run with
+   (R2022b = v9.13):
+   ```
+   MATLABROOT=/usr/local/MATLAB/R2022b bin/compile_qc_matlab.sh
+   ```
+   This regenerates `bin/compiled/{bcil_tsplot,bcil_motiongreyplot}` and their
+   `run_*.sh` launchers. (Building needs a Compiler + Statistics license;
+   *running* the result needs only the free MCR.)
+
+2. In `bcilconf/settings.sh` switch the mode and point to the Runtime:
+   ```
+   export MATLAB_MODE=runtime
+   export MCRROOT=/usr/local/MATLAB/R2022b    # an installed MCR (e.g. .../MATLAB_Runtime/v913) or a matching full MATLAB root
+   ```
+
+Leave `MATLAB_MODE=matlab` (the default) to keep using a live MATLAB session;
+the behaviour is identical in both modes.
+
 Followings are useful for QCing an individual subject:
 ```
 $ hcppipe_qc
