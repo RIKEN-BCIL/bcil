@@ -181,6 +181,30 @@ logMsg () {
 echo "$(date -R): $@"
 }
 
+# Run a QC MATLAB function either via a live MATLAB session (default) or via a
+# compiled standalone binary + MATLAB Runtime. Switched by MATLAB_MODE in
+# $BCILDIR/bcilconf/settings.sh ("matlab" = default live session, "runtime" =
+# use $BCILDIR/bin/compiled/run_<function>.sh with $MCRROOT). The default branch
+# reproduces the original "matlab -nodesktop -nodisplay -r ..." call exactly.
+# Usage: run_qc_matlab <function> <matlab_addpath_dirs> <arg> [<arg> ...]
+run_qc_matlab () {
+	local fn="$1"; local addpaths="$2"; shift 2
+	if [ "${MATLAB_MODE:-matlab}" = "runtime" ] ; then
+		if [ -z "${MCRROOT:-}" ] ; then
+			logMsg "ERROR: MATLAB_MODE=runtime but MCRROOT is unset (set it in $BCILDIR/bcilconf/settings.sh)"; exit 1
+		fi
+		local runner="$BCILDIR/bin/compiled/run_${fn}.sh"
+		if [ ! -x "$runner" ] ; then
+			logMsg "ERROR: compiled runner not found: $runner (build it with $BCILDIR/bin/compile_qc_matlab.sh)"; exit 1
+		fi
+		"$runner" "$MCRROOT" "$@"
+	else
+		local mlargs="" a
+		for a in "$@" ; do mlargs="${mlargs:+$mlargs,}'$a'" ; done
+		matlab -nodesktop -nodisplay -r "addpath $addpaths; ${fn}(${mlargs});exit"
+	fi
+}
+
 [ "$3" = "" ] && Usage_exit
 commands="$@"
 StudyFolder=$1
@@ -1723,7 +1747,7 @@ elif [[ $Func = ON && $(ls $StudyFolder/$Subject/MNINonLinear/Results/*/*.ica/fi
 
 		# For motion, FD, DVARS and greyplots
 		logMsg "Creating plots of motion, greyordinates and DVARS: $fmriname"
-		matlab -nodesktop -nodisplay -r "addpath $BCILDIR/bin $DVARSDIR $DVARSDIR/mis $HCPPIPEDIR/global/matlab; bcil_motiongreyplot('${WDfMRI}/Movement_Regressors.txt','$StudyFolder/$Subject/MNINonLinear/Results/${fmriname}/${fmriname}_Atlas.dtseries.nii','$StudyFolder/$Subject/MNINonLinear/Results/${fmriname}/${fmriname}_Atlas_hp${hp}_clean.dtseries.nii','${CARET7DIR}/wb_command','$OutputFolder/Function/report/${fmriname}/${fmriname}_motiongreyplot.png');exit"
+		run_qc_matlab bcil_motiongreyplot "$BCILDIR/bin $DVARSDIR $DVARSDIR/mis $HCPPIPEDIR/global/matlab" "${WDfMRI}/Movement_Regressors.txt" "$StudyFolder/$Subject/MNINonLinear/Results/${fmriname}/${fmriname}_Atlas.dtseries.nii" "$StudyFolder/$Subject/MNINonLinear/Results/${fmriname}/${fmriname}_Atlas_hp${hp}_clean.dtseries.nii" "${CARET7DIR}/wb_command" "$OutputFolder/Function/report/${fmriname}/${fmriname}_motiongreyplot.png"
 		size=($(identify -format '%w %h' $OutputFolder/Function/report/${fmriname}/${fmriname}_motiongreyplot.png))
 		rsize=($(echo ${size[@]} | awk '{printf "1900 %d",$NF*1900/$1}'))
 		dsize=($(echo ${rsize[@]} | awk '{printf "%d %d",$1*2,$2*2}'))
@@ -1947,7 +1971,7 @@ elif [[ $Func = ON && $(ls $StudyFolder/$Subject/MNINonLinear/Results/*/*.ica/fi
 				gmeanmc=$(fslstats $StudyFolder/$Subject/MNINonLinear/Results/${fmriname}/${fmriname}_mean.nii.gz -k $mask -m | awk '{printf "%0.6f",$1}')
 				gmeancl=$(fslstats $StudyFolder/$Subject/MNINonLinear/Results/${fmriname}/${fmriname}_hp${hp}_clean_mean.nii.gz -k $mask -m | awk '{printf "%0.6f",$1}')
 				cat ${WDfMRI}/${fmriname}_all_ts.txt_tmp | awk '{printf "%0.6f\t%0.6f\n",$1-'${gmeanmc}',$2-'${gmeancl}'}' > ${WDfMRI}/${fmriname}_all_ts.txt
-				matlab -nodesktop -nodisplay -r "addpath $BCILDIR/bin; bcil_tsplot('${WDfMRI}/${fmriname}_all_ts.txt','$OutputFolder/Function/report/${fmriname}/${fmriname}_all_ts.png','motion and distortion corrected','noise cleaned');exit"
+				run_qc_matlab bcil_tsplot "$BCILDIR/bin" "${WDfMRI}/${fmriname}_all_ts.txt" "$OutputFolder/Function/report/${fmriname}/${fmriname}_all_ts.png" "motion and distortion corrected" "noise cleaned"
 				rm ${WDfMRI}/${fmriname}_ts.txt ${WDfMRI}/${fmriname}_hp${hp}_clean_ts.txt ${WDfMRI}/${fmriname}_all_ts.txt_tmp
 				size=($(identify -format '%w %h' $OutputFolder/Function/report/${fmriname}/${fmriname}_all_ts.png))
 				rsize=($(echo ${size[@]} | awk '{printf "1900 %d",$NF*1900/$1}'))
