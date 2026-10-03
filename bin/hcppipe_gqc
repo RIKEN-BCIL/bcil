@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-VERSION=1.0
+VERSION=1.1
 
 # Requirements:
 # R>=4.4.0 (r-base-core, MASS, qcc, gggplot2)
@@ -17,6 +17,10 @@ source $BCILDIR/bcilconf/settings.sh
 # Usage
 Usage () {
 echo ""
+echo " Create group QC report"
+echo ""
+echo " Version: $VERSION"
+echo "" 
 echo " Usage: hcppipe_gqc [options] <Group Data Folder> <Protocol1 Folder> <Protocol1_Subj1>@..@<Protocol1_SubjI> .. <ProtocolN Folder> <ProtocolN_Subj1>@..@<ProtocolN_SubjJ>"
 echo ""
 echo " Optional arguments:"
@@ -308,8 +312,11 @@ cat << EOF > $OutputFolder/index.html
       text-decoration: none;
       margin: 0px 10px;
     }
-    html, body{
-      overflow: hidden;
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
     }
   </style>
   <link href=".files/lightbox.css" rel="stylesheet">
@@ -326,7 +333,7 @@ cat << EOF > $OutputFolder/index.html
   <img src=".files/fsl-logo-x2.png" style="border:none; width:80px;height:50px;float:right;">
   <img src=".files/freesurfer.png" style="border:none; width:100px;height:50px;float:right;">
   <B>HCPPIPE GROUP QC REPORT</B><BR>
-  <FONT size=1>Version 0.1 &copy;2006-2021</FONT><BR>
+  <FONT size=1>Version $VERSION &copy;2006-2026</FONT><BR>
   <Font size=2>Output directory: $OutputFolder </FONT><BR><BR>
   <center>
   <a target="targetframe" href="./report.html" class="button">Group QC </a>
@@ -356,7 +363,7 @@ cat << EOF >> $OutputFolder/index.html
    </select>
    </form>
   </center>
-  <iframe src="./report.html" frameborder="0" style="overflow:hidden; height:100%; width:100%" class="fullheight" id="targetframe" name="targetframe" scrolling="auto"></iframe>
+  <iframe src="./report.html" frameborder="0" style="display:block; overflow:auto; height:calc(100vh - 95px); width:100%; min-width:0; border:0;" class="fullheight" id="targetframe" name="targetframe" scrolling="auto"></iframe>
 </BODY>
  <script>
  var select = document.getElementById('selectdata');
@@ -388,6 +395,8 @@ while [ $i -le $(echo $ProtocolsList | awk '{print NF}') ] ; do
 	i=$(expr $i + 1)
 done 
 
+# Shared footer for Structure/Function/Diffusion QC plot pages (plot width toolbar script)
+_plotwidth_js='</div><script>(function(){var k="hcppipeGqcPlotDensity",L=["p2","p5","p10","p50"];function setLevel(d){if(L.indexOf(d)<0)d="p2";var imgs=document.getElementsByClassName("qcplot-img");for(var i=0;i<imgs.length;i++){var img=imgs[i],b=img.getAttribute("data-plot-base");if(b){img.src=b+"_"+d+".png";img.style.width="auto";img.style.height="auto";img.style.maxWidth="none";}}try{localStorage.setItem(k,d);}catch(e){}var a=document.getElementById("plotw-p2"),s=document.getElementById("plotw-p5"),m=document.getElementById("plotw-p10"),l=document.getElementById("plotw-p50");if(a&&s&&m&&l){a.style.fontWeight=d==="p2"?"bold":"normal";s.style.fontWeight=d==="p5"?"bold":"normal";m.style.fontWeight=d==="p10"?"bold":"normal";l.style.fontWeight=d==="p50"?"bold":"normal";}}var x=null;try{x=localStorage.getItem(k);}catch(e){}if(L.indexOf(x)<0)x="p2";setLevel(x);document.getElementById("plotw-p2").onclick=function(){setLevel("p2");};document.getElementById("plotw-p5").onclick=function(){setLevel("p5");};document.getElementById("plotw-p10").onclick=function(){setLevel("p10");};document.getElementById("plotw-p50").onclick=function(){setLevel("p50");};})();</script><BR><BR><BR><BR></BODY></HTML>'
 
 # Create statistical quality control pages
 
@@ -438,14 +447,49 @@ cat << EOF > $reporthtml
       text-decoration: none;
       margin: 0px 10px;
     }
-    html, body{
-      overflow: scroll;
+    /* Scroll on html so horizontal bar stays at viewport bottom (not page bottom) */
+    html {
+      overflow-x: auto;
+      overflow-y: auto;
+    }
+    body {
+      overflow-x: visible;
+      overflow-y: visible;
+      margin: 0;
+      min-width: max-content;
     }
    .stripe { 
       background-image: repeating-linear-gradient(
       90deg,
       #f0f0f0 0, #f0f0f0 1px,
       #ffffff 1px, #ffffff 50px);
+    }
+    body { padding-top: 44px; }
+    img.qcplot-img { height: auto; display: block; max-width: none; }
+    .plotwidth-toolbar {
+      position: fixed;
+      top: 4px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      background: rgba(255,255,255,0.94);
+      border: 1px solid #bbb;
+      padding: 5px 8px;
+      border-radius: 4px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    }
+    .plotwidth-toolbar .button {
+      margin: 0 2px 0 0;
+      font-size: 7pt;
+      padding: 4px 7px;
+    }
+    .qc-chart-notice {
+      margin: 6px 8px 14px 8px;
+      padding: 8px 10px;
+      font-size: 9pt;
+      color: #9a3412;
+      background: #ffedd5;
+      border-left: 4px solid #ea580c;
     }
   </style>
   <link href=".files/lightbox.css" rel="stylesheet">
@@ -455,7 +499,15 @@ cat << EOF > $reporthtml
   <script type="text/javascript" src=".files/magnifier.js"></script>
  </HEAD>
  <BODY BGCOLOR="#FFFFFF" TEXT="#151515">
+  <div class="plotwidth-toolbar" role="toolbar" aria-label="Plot width (px per subject)">
+   <span style="font-size:8pt;vertical-align:middle;margin-right:6px;">Width</span>
+   <button type="button" class="button" id="plotw-p2">2px/subj</button>
+   <button type="button" class="button" id="plotw-p5">5px/subj</button>
+   <button type="button" class="button" id="plotw-p10">10px/subj</button>
+   <button type="button" class="button" id="plotw-p50">50px/subj</button>
+  </div>
   <div class="stripe">
+  <div class="qc-chart-notice">Orange subject labels indicate a missing metric. Black subject labels indicate outliers. The line is linearly interpolated across missing metrics (no marker there). Overlapping labels are skipped, so not every flagged subject may be named.</div>
 EOF
 
 	#for variableset in WholeBrain@@-x FSL_mincost@@-x FS_mincost@@-x SDS5@SurfaceStats.csv@-c; do
@@ -470,7 +522,7 @@ EOF
 		opt=$(echo $varset | cut -d '@' -f 4)
 		filebase="$(echo $varset | cut -d '@' -f 2 | sed -e 's/.tsv//g')"
 		varname="sMRI_${filebase}_${varkey}"
-		echo "Class,SubjectID,$varname,SubjectFolder" > "$OutputFolder/Structure/${varname}.csv" 
+		echo "Class,SubjectID,$varname,SubjectFolder,MetricMissing" > "$OutputFolder/Structure/${varname}.csv" 
 	
 		i=1;
 		SubjID=1
@@ -478,18 +530,26 @@ EOF
 			Protocol=$(echo $ProtocolsList | cut -d ' ' -f $i)
 			for Subjects in $(echo $SubjectsList | cut -d ' ' -f $i) ; do
 				for Subject in $(echo $Subjects | sed -e 's/@/ /g') ; do
-					if [ -e $GroupStudyFolder/$Protocol/$Subject/QC/Structure/report.html ] ; then
-						SubjID=$($FSLDIR/bin/zeropad $SubjID 4)
-						# find value of $variable
+					SubjID=$($FSLDIR/bin/zeropad $SubjID 4)
+					str_rep="$GroupStudyFolder/$Protocol/$Subject/QC/Structure/report.html"
+					if [ -e "$str_rep" ] ; then
+						val=""
+						metric_missing=0
 						qcfile="$GroupStudyFolder/$Protocol/$Subject/QC/qc_metrics.tsv"
 						if [ -e "$qcfile" ] ; then
 							val=$(getMetricFromQcTsv "$qcfile" "Structure" "Structure" "$varname")
 						fi
 						if [[ -z "$val" ]]; then
-  							val=$(awk -F'\t' -v k="$varkey" '$1==k{print $2; exit}' "$GroupStudyFolder/$Protocol/$Subject/QC/Structure/$file")
-							#val=$(cat $GroupStudyFolder/$Protocol/$Subject/QC/Structure/$file | grep $varkey | awk -F "\t" '{print $'$col'}')
+							structfile="$GroupStudyFolder/$Protocol/$Subject/QC/Structure/$file"
+							if [ -f "$structfile" ]; then
+								val=$(awk -F'\t' -v k="$varkey" '$1==k{print $2; exit}' "$structfile")
+							fi
 						fi
-						echo "${Protocol},${SubjID},${val},${Subject}" >> "$OutputFolder/Structure/${varname}.csv"
+						if [[ -z "$val" ]]; then
+							val="NA"
+							metric_missing=1
+						fi
+						echo "${Protocol},${SubjID},${val},${Subject},${metric_missing}" >> "$OutputFolder/Structure/${varname}.csv"
 					fi
 					SubjID=$(expr $SubjID + 1)
 				done  
@@ -498,10 +558,10 @@ EOF
 		done 
 		logMsg "Rscript bcil_qcplot_qcc.R Structure/${varname}.csv Structure/report/qcplot_${varname}.png $opt $qcplotoptargs"
 		Rscript ${BCILDIR}/bin/bcil_qcplot_qcc.R $OutputFolder/Structure/${varname}.csv $OutputFolder/Structure/report/qcplot_${varname}.png $opt $qcplotoptargs
-		echo "  <B>${varname}</B><BR><img src=\"./report/qcplot_${varname}.png\" alt=\"qc_plot_${varname}\" width=\"1850\"><BR><a href=\"./${varname}.csv\">${varname}.csv</a><hr>" >> $reporthtml
+		echo "  <B>${varname}</B><BR><img class=\"qcplot-img\" data-plot-base=\"./report/qcplot_${varname}\" src=\"./report/qcplot_${varname}_p2.png\" alt=\"qc_plot_${varname}\"><BR><a href=\"./${varname}.csv\">${varname}.csv</a><hr>" >> $reporthtml
 
 	done
-	echo "</div><BR><BR><BR><BR></BODY></HTML>" >> $reporthtml
+	echo "$_plotwidth_js" >> $reporthtml
 
 fi
 
@@ -555,15 +615,50 @@ cat << EOF > $reporthtml
       text-decoration: none;
       margin: 0px 10px;
     }
-    html, body{
-      overflow: scroll;
+    /* Scroll on html so horizontal bar stays at viewport bottom (not page bottom) */
+    html {
+      overflow-x: auto;
+      overflow-y: auto;
     }
-   .stripe {
+    body {
+      overflow-x: visible;
+      overflow-y: visible;
+      margin: 0;
+      min-width: max-content;
+    }
+   .stripe { 
       background-image: repeating-linear-gradient(
       90deg,
       #f0f0f0 0, #f0f0f0 1px,
       #ffffff 1px, #ffffff 50px);
-    }    
+    }
+    body { padding-top: 44px; }
+    img.qcplot-img { height: auto; display: block; max-width: none; }
+    .plotwidth-toolbar {
+      position: fixed;
+      top: 4px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      background: rgba(255,255,255,0.94);
+      border: 1px solid #bbb;
+      padding: 5px 8px;
+      border-radius: 4px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    }
+    .plotwidth-toolbar .button {
+      margin: 0 2px 0 0;
+      font-size: 7pt;
+      padding: 4px 7px;
+    }
+    .qc-chart-notice {
+      margin: 6px 8px 14px 8px;
+      padding: 8px 10px;
+      font-size: 9pt;
+      color: #9a3412;
+      background: #ffedd5;
+      border-left: 4px solid #ea580c;
+    }
   </style>
   <link href=".files/lightbox.css" rel="stylesheet">
   <script src=".files/jquery.min.js"></script>
@@ -572,7 +667,15 @@ cat << EOF > $reporthtml
   <script type="text/javascript" src=".files/magnifier.js"></script>
  </HEAD>
  <BODY BGCOLOR="#FFFFFF" TEXT="#151515">
+  <div class="plotwidth-toolbar" role="toolbar" aria-label="Plot width (px per subject)">
+   <span style="font-size:8pt;vertical-align:middle;margin-right:6px;">Width</span>
+   <button type="button" class="button" id="plotw-p2">2px/subj</button>
+   <button type="button" class="button" id="plotw-p5">5px/subj</button>
+   <button type="button" class="button" id="plotw-p10">10px/subj</button>
+   <button type="button" class="button" id="plotw-p50">50px/subj</button>
+  </div>
   <div class="stripe">
+  <div class="qc-chart-notice">Orange subject labels indicate a missing metric. Black subject labels indicate outliers. The line is linearly interpolated across missing metrics (no marker there). Overlapping labels are skipped, so not every flagged subject may be named.</div>
 EOF
 
   # for i in QC_sub90_0921/*/QC/Function/run12_PA_AP_stats.tsv ; do mv  $i $(echo $i | sed -e 's/_stats.tsv/\/RestingStateStats.tsv/g'); done
@@ -591,9 +694,9 @@ EOF
 		filebase="$(echo $file | sed -e 's/.tsv//g' | sed -e 's/.txt//g')"
 		varname="fMRI_${filebase}_${varkey}"
 		if [ $file != RestingStateStats.tsv ] ; then
-			echo "Class,ScanID,$varname,SubjectFolder,fmriname" > "$OutputFolder/Function/${varname}.csv" 
+			echo "Class,ScanID,$varname,SubjectFolder,fmriname,MetricMissing" > "$OutputFolder/Function/${varname}.csv" 
 		else
-			echo "Class,StudyID,${varname},SubjectFolder,Run" > "$OutputFolder/Function/${varname}.csv"
+			echo "Class,StudyID,${varname},SubjectFolder,Run,MetricMissing" > "$OutputFolder/Function/${varname}.csv"
 		fi
 		i=1;
 		scan_idx=1
@@ -603,21 +706,51 @@ EOF
 				for Subject in $(echo $Subjects | sed -e 's/@/ /g') ; do
 					# ScanID is an integer counter; pad only for output
 					ScanID="$($FSLDIR/bin/zeropad $scan_idx 4)"
-					# find value of $variable
+					func_nrows=0
+					func_rep="$GroupStudyFolder/$Protocol/$Subject/QC/Function/report.html"
+					if [ ! -e "$func_rep" ] ; then
+						continue
+					fi
 					qcfile="$GroupStudyFolder/$Protocol/$Subject/QC/qc_metrics.tsv"
 					if [ -e "$qcfile" ] ; then
 						if [ "$file" = RestingStateStats.tsv ] ; then
 							# RestingStateStats exist only for BOLD_CONCAT-like runs (may be multiple in special cases)
 							for fmriname in $(getFmriConcatRuns "$GroupStudyFolder" "$Protocol" "$Subject") ; do
+								val=""
+								metric_missing=0
 								val="$(getMetricFromQcTsv "$qcfile" "Function" "$fmriname" "$varname")"
-								echo "${Protocol},${ScanID},${val},${Subject},${fmriname}" >> "$OutputFolder/Function/${varname}.csv"
+								if [[ -z "$val" ]]; then
+									funcfile="$GroupStudyFolder/$Protocol/$Subject/QC/Function/${fmriname}/$file"
+									if [[ -f "$funcfile" ]]; then
+										val=$(awk -F "\t" 'NR=='$row' {print $'$col'}' "$funcfile")
+									fi
+								fi
+								if [[ -z "$val" ]]; then
+									val="NA"
+									metric_missing=1
+								fi
+								echo "${Protocol},${ScanID},${val},${Subject},${fmriname},${metric_missing}" >> "$OutputFolder/Function/${varname}.csv"
+								func_nrows=$((func_nrows + 1))
 								scan_idx=$((scan_idx + 1))
 								ScanID="$($FSLDIR/bin/zeropad $scan_idx 4)"
 							done
 						else
 							for fmriname in $(getRunsFromQcTsv "$qcfile" "Function") ; do
+								val=""
+								metric_missing=0
 								val="$(getMetricFromQcTsv "$qcfile" "Function" "$fmriname" "$varname")"
-								echo "${Protocol},${ScanID},${val},${Subject},${fmriname}" >> "$OutputFolder/Function/${varname}.csv"
+								if [[ -z "$val" ]]; then
+									funcfile="$GroupStudyFolder/$Protocol/$Subject/QC/Function/${fmriname}/$file"
+									if [[ -f "$funcfile" ]]; then
+										val=$(awk -F "\t" 'NR=='$row' {print $'$col'}' "$funcfile")
+									fi
+								fi
+								if [[ -z "$val" ]]; then
+									val="NA"
+									metric_missing=1
+								fi
+								echo "${Protocol},${ScanID},${val},${Subject},${fmriname},${metric_missing}" >> "$OutputFolder/Function/${varname}.csv"
+								func_nrows=$((func_nrows + 1))
 								scan_idx=$((scan_idx + 1))
 								ScanID="$($FSLDIR/bin/zeropad $scan_idx 4)"
 							done
@@ -627,16 +760,26 @@ EOF
 							pathtofmri=$(dirname $j)
 							if [ -d "$pathtofmri" ] ; then
 								fmriname=`basename $pathtofmri`
-										ScanID="$($FSLDIR/bin/zeropad $scan_idx 4)"
-								val=$(cat $GroupStudyFolder/$Protocol/$Subject/QC/Function/${fmriname}/$file | awk -F "\t" 'NR=='$row' {print $'$col'}')
-								if [ $file != RestingStateStats.tsv ] ; then
-									echo "${Protocol},${ScanID},${val},${Subject},${fmriname}" >> "$OutputFolder/Function/${varname}.csv"
-								else
-									echo "${Protocol},${ScanID},${val},${Subject},${fmriname}" >> "$OutputFolder/Function/${varname}.csv"
+								ScanID="$($FSLDIR/bin/zeropad $scan_idx 4)"
+								val=""
+								metric_missing=0
+								if [[ -f "$j" ]]; then
+									val=$(awk -F "\t" 'NR=='$row' {print $'$col'}' "$j")
 								fi
+								if [[ -z "$val" ]]; then
+									val="NA"
+									metric_missing=1
+								fi
+								echo "${Protocol},${ScanID},${val},${Subject},${fmriname},${metric_missing}" >> "$OutputFolder/Function/${varname}.csv"
+								func_nrows=$((func_nrows + 1))
 								scan_idx=$((scan_idx + 1))
 							fi
 						done
+					fi
+					if [ "$func_nrows" -eq 0 ] ; then
+						ScanID="$($FSLDIR/bin/zeropad $scan_idx 4)"
+						echo "${Protocol},${ScanID},NA,${Subject},NA,1" >> "$OutputFolder/Function/${varname}.csv"
+						scan_idx=$((scan_idx + 1))
 					fi
 				done
 			done
@@ -644,10 +787,10 @@ EOF
 		done 
 		logMsg "Rscript bcil_qcplot_qcc.R Function/${varname}.csv Function/report/qcplot_${varname}.png $opt $qcplotoptargs"
 		Rscript ${BCILDIR}/bin/bcil_qcplot_qcc.R $OutputFolder/Function/${varname}.csv $OutputFolder/Function/report/qcplot_${varname}.png $opt $qcplotoptargs
-		echo "  <B>${varname}</B><BR><img src=\"./report/qcplot_${varname}.png\" alt=\"qc_plot_${varname}\" width=\"1850\"><BR><a href=\"./${varname}.csv\">${varname}.csv</a><hr>" >> $reporthtml
+		echo "  <B>${varname}</B><BR><img class=\"qcplot-img\" data-plot-base=\"./report/qcplot_${varname}\" src=\"./report/qcplot_${varname}_p2.png\" alt=\"qc_plot_${varname}\"><BR><a href=\"./${varname}.csv\">${varname}.csv</a><hr>" >> $reporthtml
 
 	done
-	echo "</div><BR><BR><BR><BR></BODY></HTML>" >> $reporthtml
+	echo "$_plotwidth_js" >> $reporthtml
 
 fi
 
@@ -701,15 +844,50 @@ cat << EOF > $reporthtml
       text-decoration: none;
       margin: 0px 10px;
     }
-    html, body{
-      overflow: scroll;
+    /* Scroll on html so horizontal bar stays at viewport bottom (not page bottom) */
+    html {
+      overflow-x: auto;
+      overflow-y: auto;
     }
-   .stripe {
+    body {
+      overflow-x: visible;
+      overflow-y: visible;
+      margin: 0;
+      min-width: max-content;
+    }
+   .stripe { 
       background-image: repeating-linear-gradient(
       90deg,
       #f0f0f0 0, #f0f0f0 1px,
       #ffffff 1px, #ffffff 50px);
-    }    
+    }
+    body { padding-top: 44px; }
+    img.qcplot-img { height: auto; display: block; max-width: none; }
+    .plotwidth-toolbar {
+      position: fixed;
+      top: 4px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      background: rgba(255,255,255,0.94);
+      border: 1px solid #bbb;
+      padding: 5px 8px;
+      border-radius: 4px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    }
+    .plotwidth-toolbar .button {
+      margin: 0 2px 0 0;
+      font-size: 7pt;
+      padding: 4px 7px;
+    }
+    .qc-chart-notice {
+      margin: 6px 8px 14px 8px;
+      padding: 8px 10px;
+      font-size: 9pt;
+      color: #9a3412;
+      background: #ffedd5;
+      border-left: 4px solid #ea580c;
+    }
   </style>
   <link href=".files/lightbox.css" rel="stylesheet">
   <script src=".files/jquery.min.js"></script>
@@ -718,10 +896,18 @@ cat << EOF > $reporthtml
   <script type="text/javascript" src=".files/magnifier.js"></script>
  </HEAD>
  <BODY BGCOLOR="#FFFFFF" TEXT="#151515">
+  <div class="plotwidth-toolbar" role="toolbar" aria-label="Plot width (px per subject)">
+   <span style="font-size:8pt;vertical-align:middle;margin-right:6px;">Width</span>
+   <button type="button" class="button" id="plotw-p2">2px/subj</button>
+   <button type="button" class="button" id="plotw-p5">5px/subj</button>
+   <button type="button" class="button" id="plotw-p10">10px/subj</button>
+   <button type="button" class="button" id="plotw-p50">50px/subj</button>
+  </div>
   <div class="stripe">
+  <div class="qc-chart-notice">Orange subject labels indicate a missing metric. Black subject labels indicate outliers. The line is linearly interpolated across missing metrics (no marker there). Overlapping labels are skipped, so not every flagged subject may be named.</div>
 EOF
 
-	for varset in "Average SNR"@DiffusionQC.tsv@2@-x "Average CNR"@DiffusionQC.tsv@2@-x "Average abs. motion"@DiffusionQC.tsv@2@-x "Average rel. motion"@DiffusionQC.tsv@2@-x "Total outliers"@DiffusionQC.tsv@2@-x "Std Dev voxel displacement"@DiffusionQC.tsv@2@-x IQR@Fieldmap_stats.tsv@2@-x Fiber_1_ratio@TractographyQC.tsv@2@-x Fiber_2_ratio@TractographyQC.tsv@2@-x Fiber_3_ratio@TractographyQC.tsv@2@-x Fiber_1_uncertainty@TractographyQC.tsv@2@-x Fiber_2_uncertainty@TractographyQC.tsv@2@-x Fiber_3_uncertainty@TractographyQC.tsv@2@-x FSL_BBR_mincost@nodif2T1w.mincost.tsv@2@-x FreeSurfer_BBR_mincost@nodif2T1w.mincost.tsv@2@-x; do 
+	for varset in "SNR"@DiffusionQC.tsv@2@-x "CNR"@DiffusionQC.tsv@2@-x "Average abs. motion"@DiffusionQC.tsv@2@-x@abs_motion "Average rel. motion"@DiffusionQC.tsv@2@-x@rel_motion "Total outliers"@DiffusionQC.tsv@2@-x "Std Dev voxel displacement"@DiffusionQC.tsv@2@-x IQR@Fieldmap_stats.tsv@2@-x Fiber_1_ratio@TractographyQC.tsv@2@-x Fiber_2_ratio@TractographyQC.tsv@2@-x Fiber_3_ratio@TractographyQC.tsv@2@-x Fiber_1_uncertainty@TractographyQC.tsv@2@-x Fiber_2_uncertainty@TractographyQC.tsv@2@-x Fiber_3_uncertainty@TractographyQC.tsv@2@-x FSL_BBR_mincost@nodif2T1w.mincost.tsv@2@-x FreeSurfer_BBR_mincost@nodif2T1w.mincost.tsv@2@-x; do 
 		
 		# Not used variables
 		
@@ -730,8 +916,10 @@ EOF
 		col=$(echo $varset | cut -d '@' -f 3)
 		opt=$(echo $varset | cut -d '@' -f 4)
 		filebase="$(echo $varset | cut -d '@' -f 2 | sed -e 's/.tsv//g')"
-		varname="dMRI_${filebase}_${varkey}"
-		echo "Class,SubjectID,$varname,SubjectFolder" > "$OutputFolder/Diffusion/${varname}.csv"
+		# 5番目のフィールドがあれば変数名として使う (grepキーと表示名の分離)
+		vname=$(echo $varset | cut -d '@' -f 5); [ -n "$vname" ] || vname="$varkey"
+		varname="dMRI_${filebase}_${vname}"
+		echo "Class,SubjectID,$varname,SubjectFolder,MetricMissing" > "$OutputFolder/Diffusion/${varname}.csv"
 	
 		i=1;
 		SubjID=1
@@ -739,17 +927,26 @@ EOF
 			Protocol=$(echo $ProtocolsList | cut -d ' ' -f $i)
 			for Subjects in $(echo $SubjectsList | cut -d ' ' -f $i) ; do
 				for Subject in $(echo $Subjects | sed -e 's/@/ /g') ; do
-					if [ -e $GroupStudyFolder/$Protocol/$Subject/QC/Diffusion/report.html ] ; then
-						SubjID=$($FSLDIR/bin/zeropad $SubjID 4)
-						# find value of $variable
+					SubjID=$($FSLDIR/bin/zeropad $SubjID 4)
+					dwi_rep="$GroupStudyFolder/$Protocol/$Subject/QC/Diffusion/report.html"
+					if [ -e "$dwi_rep" ] ; then
+						val=""
+						metric_missing=0
 						qcfile="$GroupStudyFolder/$Protocol/$Subject/QC/qc_metrics.tsv"
 						if [ -e "$qcfile" ] ; then
 							val=$(getMetricFromQcTsv "$qcfile" "Diffusion" "Diffusion" "$varname")
 						fi
 						if [[ -z "$val" ]]; then
-							val=$(cat $GroupStudyFolder/$Protocol/$Subject/QC/Diffusion/$file | grep "$varkey" | tail -1 | awk -F "\t" '{print $'$col'}')
+							difffile="$GroupStudyFolder/$Protocol/$Subject/QC/Diffusion/$file"
+							if [[ -f "$difffile" ]]; then
+								val=$(grep -F "$varkey" "$difffile" | tail -1 | awk -F "\t" '{print $'$col'}')
+							fi
 						fi
-						echo "${Protocol},${SubjID},${val},${Subject}" >> "$OutputFolder/Diffusion/${varname}.csv"
+						if [[ -z "$val" ]]; then
+							val="NA"
+							metric_missing=1
+						fi
+						echo "${Protocol},${SubjID},${val},${Subject},${metric_missing}" >> "$OutputFolder/Diffusion/${varname}.csv"
 					fi
 					SubjID=$(expr $SubjID + 1)
 				done  
@@ -758,10 +955,10 @@ EOF
 		done 
 		logMsg "Rscript bcil_qcplot_qcc.R Diffusion/${varname}.csv Diffusion/report/qcplot_${varname}.png $opt $qcplotoptargs"
 		Rscript "${BCILDIR}/bin/bcil_qcplot_qcc.R" "$OutputFolder/Diffusion/${varname}.csv" "$OutputFolder/Diffusion/report/qcplot_${varname}.png" $opt $qcplotoptargs
-		echo "  <B>${varname}</B><BR><img src=\"./report/qcplot_${varname}.png\" alt=\"qc_plot_${varname}\" width=\"1850\"><BR><a href=\"./${varname}.csv\">${varname}.csv</a><hr>" >> $reporthtml
+		echo "  <B>${varname}</B><BR><img class=\"qcplot-img\" data-plot-base=\"./report/qcplot_${varname}\" src=\"./report/qcplot_${varname}_p2.png\" alt=\"qc_plot_${varname}\"><BR><a href=\"./${varname}.csv\">${varname}.csv</a><hr>" >> $reporthtml
 
 	done
-	echo "</div><BR><BR><BR><BR></BODY></HTML>" >> $reporthtml
+	echo "$_plotwidth_js" >> $reporthtml
 
 fi
 
@@ -814,8 +1011,11 @@ cat <<EOF > $reporthtml
       text-decoration: none;
       margin: 0px 10px;
     }
-    html, body{
-      overflow: hidden;
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
     }
     .water {
       height: 30px;
@@ -851,7 +1051,7 @@ done
 cat <<EOF >> $reporthtml 
    </div>
   </center>
-  <iframe frameborder="0" style="overflow:hidden; height:100%; width:100%" class="fullheight" name="Change" scrolling="auto"></iframe>
+  <iframe frameborder="0" style="display:block; border:0; width:100%; min-width:0; height:calc(100vh - 50px); overflow:auto;" name="Change" scrolling="auto"></iframe>
  </BODY>
 </HTML>
 EOF
