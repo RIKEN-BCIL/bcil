@@ -64,9 +64,7 @@ if [[ $(which jq 2>/dev/null ) = "" ]] ; then
  	echo "ERROR: cannot find 'jq' in the system. Please install jq."
 	exit 1;
 fi
-if [[ $(which zipmerge 2>/dev/null ) = "" ]] ; then
- 	echo "WARNING: cannot find 'zipmerge'. You cannot zip archive if you use -z option."
-else
+if [[ $(which zipmerge 2>/dev/null ) != "" ]] ; then
 	ZipMerge=ON
 fi
 
@@ -89,7 +87,7 @@ Usage_exit () {
  echo " Optional arguments:"
  echo "    -a <label>    0:   Human              (HCP-S1200) [default]"
  echo "                  1:   Macaque            (MacaqueRIKEN32BS)"
- echo "                  1.1: Macaque Cynomolgus (Mac24cyno)"
+ echo "                  1.1: Macaque Cynomolgus (Mac25cyno)"
  echo "                  1.2: Macaque Rhesus     (Mac25Rhesus)"
  echo "                  2:   Marmoset           (MarmosetRIKEN25)"
 # echo "    -m       : create movie of fMRI before and after ICA-FIX clean in Functional QC"
@@ -1710,20 +1708,22 @@ elif [[ $Func = ON && $(ls $StudyFolder/$Subject/MNINonLinear/Results/*/*.ica/fi
 		done
 		echo "<BR><BR>" >> $reporthtml
 
-		if [ ! -e $StudyFolder/$Subject/${fmriname}/Movement_Regressors.txt ] ; then
-			break;
+		# Source motion files from the persistent Results dir; the top-level per-run
+		# working dir ($Subject/${fmriname}) is usually cleaned up after preprocessing.
+		# Skip this run's section only if even Results lacks Movement_Regressors.
+		ResRunDir=$StudyFolder/$Subject/MNINonLinear/Results/${fmriname}
+		if [ ! -e ${ResRunDir}/Movement_Regressors.txt ] ; then
+			logMsg "WARNING: $fmriname has no Movement_Regressors.txt in Results; skipping ITS per-run QC section only"
+			continue;
 		fi
 		WDfMRI=${WD}/${fmriname}
 		ReportDirfMRI=${reportdir}/${fmriname}
 
 		mkdir -p $ReportDirfMRI
 		mkdir -p ${WDfMRI}
-		cp $StudyFolder/$Subject/${fmriname}/Movement_Regressors.txt ${WDfMRI}/Movement_Regressors.txt
-		cp $StudyFolder/$Subject/${fmriname}/Movement_Regressors_dt.txt ${WDfMRI}/Movement_Regressors_dt.txt
-		cp $StudyFolder/$Subject/${fmriname}/Movement_AbsoluteRMS.txt ${WDfMRI}/Movement_AbsoluteRMS.txt
-		cp $StudyFolder/$Subject/${fmriname}/Movement_RelativeRMS.txt ${WDfMRI}/Movement_RelativeRMS.txt
-		cp $StudyFolder/$Subject/${fmriname}/Movement_AbsoluteRMS_mean.txt ${WDfMRI}/Movement_AbsoluteRMS_mean.txt
-		cp $StudyFolder/$Subject/${fmriname}/Movement_RelativeRMS_mean.txt ${WDfMRI}/Movement_RelativeRMS_mean.txt
+		for mf in Movement_Regressors.txt Movement_Regressors_dt.txt Movement_AbsoluteRMS.txt Movement_RelativeRMS.txt Movement_AbsoluteRMS_mean.txt Movement_RelativeRMS_mean.txt ; do
+			if [ -e ${ResRunDir}/${mf} ] ; then cp ${ResRunDir}/${mf} ${WDfMRI}/${mf} ; fi
+		done
 		# FileList="Movement_Regressors.txt Movement_Regressors_dt.txt Movement_AbsoluteRMS.txt Movement_RelativeRMS.txt Movement_AbsoluteRMS_mean.txt Movement_RelativeRMS_mean.txt"
 		# for FileName in $FileList ; do
 		# 	SRC="$StudyFolder/$Subject/${fmriname}/${FileName}"
@@ -1737,9 +1737,8 @@ elif [[ $Func = ON && $(ls $StudyFolder/$Subject/MNINonLinear/Results/*/*.ica/fi
 		# 	fi
 		# done
 
-		cp $StudyFolder/$Subject/${fmriname}/MotionCorrection/${fmriname}_mc.ecclog ${WDfMRI}/${fmriname}_mc.ecclog
-
-		if [[ $(cat ${WDfMRI}/${fmriname}_mc.ecclog | grep "mat/MAT_") != "" ]] ; then
+		ecclog=$StudyFolder/$Subject/${fmriname}/MotionCorrection/${fmriname}_mc.ecclog
+		if [ -e "$ecclog" ] && grep -q "mat/MAT_" "$ecclog" ; then
 			echo "<I>Motion correction with MCFLIRT and ICA-FIX clean</I><BR><BR>"  >> $reporthtml
 		else
 			echo "<I>Motion correction with FLIRT and ICA-FIX clean</I><BR><BR>"  >> $reporthtml
@@ -1776,9 +1775,12 @@ elif [[ $Func = ON && $(ls $StudyFolder/$Subject/MNINonLinear/Results/*/*.ica/fi
 		cat ${WDfMRI}/ICA-FIX_stats.tsv | tsv2html >> $reporthtml
 		echo "<BR><BR>"  >> $reporthtml
 
-		# QC for distortion correction
-		logMsg "QC for distortion correction: $fmriname"
+		# QC for distortion correction + EPI-to-T1w registration.
+		# These need the per-run working dir, which is cleaned up after preprocessing;
+		# skip the panels gracefully (motion/greyplot/DVARS above come from persistent Results).
 		DistCorDir=$StudyFolder/$Subject/${fmriname}/DistortionCorrectionAndEPIToT1wReg_FLIRTBBRAndFreeSurferBBRbased
+		if [ -d "$DistCorDir" ] ; then
+		logMsg "QC for distortion correction: $fmriname"
 		FieldMapDir=$DistCorDir/FieldMap
 		echo "<I>Distortion correction</I><BR>" >> $reporthtml
 
@@ -1894,6 +1896,10 @@ elif [[ $Func = ON && $(ls $StudyFolder/$Subject/MNINonLinear/Results/*/*.ica/fi
 		echo "<I>${fmriname}_Ref vs surfaces</I><BR>"  >> $reporthtml
 		echo "Check that cortical ribbon of the distortion-corrected ref image aligns well with white and pial surfaces. Subtle misregistration can cause partial voluming effect in the signals of cortical ribbon. It is often useful to closely investigate sagittal (1st row) and axial sections (3rd row) if fMRI's phase-encode is in y-axis, and axial and coronal sections (2nd row) if fMRI's phase-encode is in x-axis. <BR>"  >> $reporthtml
 		echo "<div class=\"magnifier\" style=\"width: ${rsize[0]}px;height:${rsize[1]}px\"><div class=\"maglens\" style=\"width:240px; height:150px\"><img src=\"./report/${fmriname}/${fmriname}BBRQC.gif\" class=\"maglarge\" style=\"width:${dsize[0]}px;height:${dsize[1]}px\"/></div></div><BR>" >> $reporthtml
+		else
+			logMsg "SKIP distortion/registration QC for $fmriname (per-run working dir cleaned up)"
+			echo "<I>Distortion-correction and registration QC</I><BR>Working files for this run were cleaned up after preprocessing, so these panels are unavailable. Motion, greyordinate, DVARS and ICA-FIX metrics above were regenerated from persistent data.<BR><BR>" >> $reporthtml
+		fi
 
 		DistCorDir=$StudyFolder/$Subject/${fmriname}/DistortionCorrectionAndEPIToT1wReg_FLIRTBBRAndFreeSurferBBRbased
 		if [ -e $DistCorDir ] ; then
@@ -2412,15 +2418,16 @@ WriteMetrics () {
 	| awk -F_ 'tolower($1) ~ /^(fmri|dmri|smri)$/ {print tolower($1)}' \
 	| sort -u | paste -sd, -) : "${modalities:=unknown}"
 
-	jq -n \
+	# use -s (slurp input file into an array as '.') instead of --slurpfile,
+	# so this also works with old jq (<1.5) found on some nodes - TH
+	jq -s \
 	--arg subject "$Subject" \
 	--arg generated_at "$(date -Iseconds)" \
 	--arg script "hcppipe_qc" \
 	--arg version "${VERSION:-unknown}" \
 	--arg modalities "$modalities" \
-	--slurpfile rows "$tmpjson" \
-	'{meta:{subject:$subject, generated_at:$generated_at, script:$script, version:$version, modalities:$modalities}, rows:$rows}' \
-	> "$out_json"
+	'{meta:{subject:$subject, generated_at:$generated_at, script:$script, version:$version, modalities:$modalities}, rows:.}' \
+	"$tmpjson" > "$out_json"
 else
 	# Fallback: JSON Lines only
 	cp "$tmpjson" "$out_json"
