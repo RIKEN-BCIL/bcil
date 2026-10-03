@@ -71,3 +71,38 @@ $ hcppipe_gqc
 , which generates control charts for many BQM across subjects and sites (or protocols).
 
 Note that confidence levels in each chart are currently created by a conventional Shewhart's method based on assumptions of normality (ordinary metrics) or Poisson distribution (count data). Fully non-parametric method is under development for future release!
+
+### Group QC summary page
+
+`hcppipe_gqc` writes a `summary/qc_summary.html` page that, for multi-site /
+travelling-subjects studies, includes a Site/Project overview (scanner model,
+coil, demographics, per-site subject/session counts), a cohort age distribution,
+and an **inter-site connectivity matrix** — how many subjects were scanned at
+each pair of Site/Projects. The connectivity matrix is shown as a 2-D heatmap and,
+when the page is opened online, also as an **interactive 3-D chart** (bars =
+shared-subject counts, colored by the blend of the two sites' scanner-model
+colors; drag to rotate, scroll to zoom).
+
+[![Interactive 3-D inter-site connectivity](docs/site_connectivity_3d.gif)](https://riken-bcil.github.io/bcil/)
+
+**▶ [Open the interactive 3-D version](https://riken-bcil.github.io/bcil/)** (needs a
+WebGL browser with internet access). The GitHub README cannot run the interactive
+chart itself, so the animation above is a preview that links to the live page
+hosted on GitHub Pages. To enable it for this repository: *Settings → Pages →
+Build and deployment → Source: Deploy from a branch → Branch: `main` / `docs`*.
+
+## References
+
+If you use these tools, please cite:
+
+- Koike S, Tanaka SC, Okada T, Aso T, Yamashita A, Yamashita O, et al.
+  Brain/MINDS beyond human brain MRI project: A protocol for multi-level
+  harmonization across brain disorders throughout the lifespan.
+  *NeuroImage: Clinical*. 2021;30:102600.
+  doi:[10.1016/j.nicl.2021.102600](https://doi.org/10.1016/j.nicl.2021.102600)
+
+- Oi Y, Hirose M, Togo H, Yoshinaga K, Akasaka T, Okada T, Aso T, Takahashi R,
+  Glasser MF, Hayashi T, Hanakawa T. Identifying and reverting the adverse
+  effects of white matter hyperintensities on cortical surface analyses.
+  *NeuroImage*. 2023;281:120377.
+  doi:[10.1016/j.neuroimage.2023.120377](https://doi.org/10.1016/j.neuroimage.2023.120377)
