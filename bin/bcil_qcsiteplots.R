@@ -102,7 +102,6 @@ for (mod in modalities) {
     fpath <- file.path(plotdir, fn)
 
     grDevices::png(fpath, width=png_width, height=png_height, res=150)
-    op <- par(mar=c(10,5,4,2) + 0.1)
 
     # set y limits using all available values
     yy <- dat$Y[!is.na(dat$Y)]
@@ -114,10 +113,15 @@ for (mod in modalities) {
       ylim <- c(ylim[1]-pad, ylim[2]+pad)
     }
 
-    # start empty plot
+    # reserve bottom margin generously (covers 45/90-deg rotated labels)
+    lab_cex <- 0.8
+    maxchar <- max(nchar(lab_txt))
+    bot_lines <- max(8, min(24, round(0.6 * maxchar)))
+    op <- par(mar=c(bot_lines, 5, 4, 2) + 0.1)
+
+    # start empty plot (x-axis title drawn later, below the labels)
     plot(NA, xlim=c(0.5, length(sites)+0.5), ylim=ylim, xaxt="n",
-         xlab="Site/Protocol (label color indicates reliability)",
-         ylab=met, main=paste0(mod, " / ", met))
+         xlab="", ylab=met, main=paste0(mod, " / ", met))
 
     # draw boxplots only for sites with data, but keep positions
     if (any(nonempty)) {
@@ -133,17 +137,29 @@ for (mod in modalities) {
       points(xj, dat$Y[keep], pch=16, cex=0.5, col=grDevices::rgb(0,0,0,0.25))
     }
 
-    # axis labels with colored text
+    # axis ticks (labels drawn below, rotated automatically if they would overlap)
     axis(1, at=pos, labels=FALSE)
-    usr <- par("usr")
-
+    usr     <- par("usr")
+    line_in <- par("csi")                       # inches per margin line
+    slot_in <- par("pin")[1] / length(sites)    # horizontal inches available per label
+    lab_w_in <- max(strwidth(lab_txt, units="inches", cex=lab_cex))
+    if (lab_w_in <= 0.90 * slot_in) {           # fits horizontally
+      lab_srt <- 0;  lab_adj <- c(0.5, 1); lab_yoff <- 0.06; lab_ext_in <- line_in * 1.2
+    } else if (lab_w_in * 0.7071 <= 0.98 * slot_in) {   # 45-deg fits
+      lab_srt <- 45; lab_adj <- c(1, 1);   lab_yoff <- 0.02; lab_ext_in <- lab_w_in * 0.7071
+    } else {                                    # need vertical
+      lab_srt <- 90; lab_adj <- c(1, 0.5); lab_yoff <- 0.02; lab_ext_in <- lab_w_in
+    }
     text(
       x = pos,
-      y = usr[3] - 0.06*(usr[4]-usr[3]),
+      y = usr[3] - lab_yoff*(usr[4]-usr[3]),
       labels = lab_txt,
-      srt = 0, adj = c(0.5, 1),
-      xpd = NA, cex = 0.8, col = lab_cols
+      srt = lab_srt, adj = lab_adj,
+      xpd = NA, cex = lab_cex, col = lab_cols
          )
+    # x-axis title placed just below the (possibly rotated) labels
+    mtext("Site/Protocol (label color indicates reliability)",
+          side = 1, line = min(bot_lines - 1, lab_ext_in/line_in + 2.0), cex = 0.9)
 
     legend("topright",
            legend=c(paste0("GREEN: n>=", n_good),
