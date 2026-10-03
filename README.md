@@ -85,12 +85,7 @@ colors; drag to rotate, scroll to zoom).
 
 [![Interactive 3-D inter-site connectivity](docs/site_connectivity_3d.gif)](https://riken-bcil.github.io/bcil/)
 
-**▶ [Open the interactive 3-D version](https://riken-bcil.github.io/bcil/)** (needs a
-WebGL browser with internet access). The GitHub README cannot run the interactive
-chart itself, so the animation above is a preview that links to the live page
-hosted on GitHub Pages. To enable it for this repository (one-time): *Settings →
-Pages → Build and deployment → Source: Deploy from a branch → Branch: `master`,
-folder `/docs` → Save*. The page then appears at the link above within a minute.
+**▶ [Open the interactive 3-D version](https://riken-bcil.github.io/bcil/)** 
 
 ## References
 
