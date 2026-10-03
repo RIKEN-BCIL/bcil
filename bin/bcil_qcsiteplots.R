@@ -43,9 +43,9 @@ safe_name <- function(x){
   x
 }
 
-# reliability colors by n
+# reliability colors by n (colorblind-safe: BLUE / ORANGE / RED, avoiding green-red confusion)
 rel_color <- function(n){
-  ifelse(n >= n_good, "#2e7d32", ifelse(n >= n_bad, "#f9a825", "#c62828"))
+  ifelse(n >= n_good, "#0072B2", ifelse(n >= n_bad, "#E69F00", "#D55E00"))
 }
 
 modalities <- unique(wide$Modality)
@@ -162,10 +162,10 @@ for (mod in modalities) {
           side = 1, line = min(bot_lines - 1, lab_ext_in/line_in + 2.0), cex = 0.9)
 
     legend("topright",
-           legend=c(paste0("GREEN: n>=", n_good),
+           legend=c(paste0("BLUE: n>=", n_good),
                     paste0("ORANGE: ", n_bad, "<=n<", n_good),
                     paste0("RED: n<", n_bad)),
-           col=c("#2e7d32", "#f9a825", "#c62828"),
+           col=c("#0072B2", "#E69F00", "#D55E00"),
            pch=15, pt.cex=1.2, bty="n", cex=0.85)
 
     par(op)
@@ -239,9 +239,9 @@ table.dataTable thead th { white-space: nowrap; }
 <p>All sites/protocols are shown on the x-axis; sites with <code>n=0</code> have no box but remain labeled.</p>
 <p>X-axis labels include per-site <code>n_valid</code>; label color indicates reliability:</p>
 <ul>
-<li><span style="color:#2e7d32;font-weight:bold;">GREEN</span>: n &ge; ', n_good, '</li>
-<li><span style="color:#f9a825;font-weight:bold;">ORANGE</span>: ', n_bad, ' &le; n &lt; ', n_good, '</li>
-<li><span style="color:#c62828;font-weight:bold;">RED</span>: n &lt; ', n_bad, '</li>
+<li><span style="color:#0072B2;font-weight:bold;">BLUE</span>: n &ge; ', n_good, '</li>
+<li><span style="color:#E69F00;font-weight:bold;">ORANGE</span>: ', n_bad, ' &le; n &lt; ', n_good, '</li>
+<li><span style="color:#D55E00;font-weight:bold;">RED</span>: n &lt; ', n_bad, '</li>
 </ul>
 
 <table id="tab" class="display" style="width:100%">
