@@ -88,20 +88,23 @@ colors; drag to rotate, scroll to zoom).
 **▶ [Open the interactive 3-D version](https://riken-bcil.github.io/bcil/)** (needs a
 WebGL browser with internet access). The GitHub README cannot run the interactive
 chart itself, so the animation above is a preview that links to the live page
-hosted on GitHub Pages. To enable it for this repository: *Settings → Pages →
-Build and deployment → Source: Deploy from a branch → Branch: `main` / `docs`*.
+hosted on GitHub Pages. To enable it for this repository (one-time): *Settings →
+Pages → Build and deployment → Source: Deploy from a branch → Branch: `master`,
+folder `/docs` → Save*. The page then appears at the link above within a minute.
 
 ## References
 
 If you use these tools, please cite:
 
-- Koike S, Tanaka SC, Okada T, Aso T, Yamashita A, Yamashita O, et al.
+- For the multi-site harmonization protocol (HARP) and travelling-subject design:
+  Koike S, Tanaka SC, Okada T, Aso T, Yamashita A, Yamashita O, et al.
   Brain/MINDS beyond human brain MRI project: A protocol for multi-level
   harmonization across brain disorders throughout the lifespan.
   *NeuroImage: Clinical*. 2021;30:102600.
   doi:[10.1016/j.nicl.2021.102600](https://doi.org/10.1016/j.nicl.2021.102600)
 
-- Oi Y, Hirose M, Togo H, Yoshinaga K, Akasaka T, Okada T, Aso T, Takahashi R,
+- For the surface defect score (SDS) and automated cortical-surface QC:
+  Oi Y, Hirose M, Togo H, Yoshinaga K, Akasaka T, Okada T, Aso T, Takahashi R,
   Glasser MF, Hayashi T, Hanakawa T. Identifying and reverting the adverse
   effects of white matter hyperintensities on cortical surface analyses.
   *NeuroImage*. 2023;281:120377.
