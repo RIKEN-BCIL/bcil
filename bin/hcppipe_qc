@@ -87,7 +87,7 @@ Usage_exit () {
  echo " Optional arguments:"
  echo "    -a <label>    0:   Human              (HCP-S1200) [default]"
  echo "                  1:   Macaque            (MacaqueRIKEN32BS)"
- echo "                  1.1: Macaque Cynomolgus (Mac25cyno)"
+ echo "                  1.1: Macaque Cynomolgus (Mac25Cyno)"
  echo "                  1.2: Macaque Rhesus     (Mac25Rhesus)"
  echo "                  2:   Marmoset           (MarmosetRIKEN25)"
 # echo "    -m       : create movie of fMRI before and after ICA-FIX clean in Functional QC"
