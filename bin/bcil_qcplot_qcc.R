@@ -357,9 +357,9 @@ p <- ggplot(dat, aes(x = X_idx, y = plot_y_line)) +
     plot.background  = element_rect(fill = "transparent", color = NA),
     axis.text.x = element_text(angle = 90, size = 8, face = "italic")
   ) +
-  geom_hline(aes(yintercept = center), linewidth = 0.6) +
-  geom_hline(aes(yintercept = ucl), linetype = "dashed", linewidth = 0.6) +
-  geom_hline(aes(yintercept = lcl), linetype = "dashed", linewidth = 0.6)
+  geom_hline(aes(yintercept = center)) +
+  geom_hline(aes(yintercept = ucl), linetype = "dashed") +
+  geom_hline(aes(yintercept = lcl), linetype = "dashed")
 
 # Points: skip MetricMissing rows (no dot on NA); color by Run if present
 pt_dat <- if (has_mm) dat[!miss1, , drop = FALSE] else dat
@@ -380,10 +380,10 @@ if (show_1n2 && chart_type == "-x") {
   ds <- ds[!duplicated(ds$Class), , drop = FALSE]
   if (nrow(ds) > 0L) {
     p <- p +
-      geom_hline(data = ds, aes(yintercept = center + 1 * sigma), inherit.aes = FALSE, linetype = "dotted", linewidth = 0.4) +
-      geom_hline(data = ds, aes(yintercept = center - 1 * sigma), inherit.aes = FALSE, linetype = "dotted", linewidth = 0.4) +
-      geom_hline(data = ds, aes(yintercept = center + 2 * sigma), inherit.aes = FALSE, linetype = "dotdash", linewidth = 0.4) +
-      geom_hline(data = ds, aes(yintercept = center - 2 * sigma), inherit.aes = FALSE, linetype = "dotdash", linewidth = 0.4)
+      geom_hline(data = ds, aes(yintercept = center + 1 * sigma), linetype = "dotted") +
+      geom_hline(data = ds, aes(yintercept = center - 1 * sigma), linetype = "dotted") +
+      geom_hline(data = ds, aes(yintercept = center + 2 * sigma), linetype = "dotdash") +
+      geom_hline(data = ds, aes(yintercept = center - 2 * sigma), linetype = "dotdash")
   }
 }
 
