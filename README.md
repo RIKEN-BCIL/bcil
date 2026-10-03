@@ -83,9 +83,7 @@ when the page is opened online, also as an **interactive 3-D chart** (bars =
 shared-subject counts, colored by the blend of the two sites' scanner-model
 colors; drag to rotate, scroll to zoom).
 
-[![Interactive 3-D inter-site connectivity](docs/site_connectivity_3d.gif)](https://riken-bcil.github.io/bcil/)
-
-**▶ [Open the interactive 3-D version](https://riken-bcil.github.io/bcil/)** 
+**▶ [Open the interactive 3-D view](https://riken-bcil.github.io/bcil/)** 
 
 ## References
 
