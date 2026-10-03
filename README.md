@@ -5,7 +5,7 @@ Brain Connectomics Imaging Libraries
 1. Requires FSL (>=6.0), WORKBENCH (>=2.0.0), FreeSurfer (>=6.0.0) , matlab (>=2022b), R (>=4.3.0)
 
 * matlab toolbox: DSE decomposition (https://github.com/asoroosh/DVARS)
-* R toolbox: ggplot2
+* R toolbox: ggplot2, qcc
 * jq
 * ImageMagick
 
