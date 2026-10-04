@@ -1005,7 +1005,8 @@ fi
 # Generate QC summary tables (wide + MAD-based outlier flags)
 logMsg "Generating QC summary tables (qc_summary_wide.tsv / qc_summary_flags.tsv)"
 GenerateSummary || exit 1
-Rscript ${BCILDIR}/bin/bcil_qcsummary.R  "$OutputFolder/summary/qc_summary_wide.tsv" "$OutputFolder/summary" 3 200 "$GroupStudyFolder" 20 10
+# last arg (3) = BQM domain-score exclusion threshold: EXCLUDE when any domain score >= it
+Rscript ${BCILDIR}/bin/bcil_qcsummary.R  "$OutputFolder/summary/qc_summary_wide.tsv" "$OutputFolder/summary" 3 200 "$GroupStudyFolder" 20 10 3
 
 logMsg "Generating QC metrics by site plot" 
 Rscript ${BCILDIR}/bin/bcil_qcsiteplots.R "$OutputFolder/summary/qc_summary_wide.tsv" "$OutputFolder/summary" 20 10

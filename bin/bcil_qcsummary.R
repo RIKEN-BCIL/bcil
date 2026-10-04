@@ -504,7 +504,7 @@ if (nzchar(gsf)) {
       lcolstr <- paste(sprintf('"%s"', lcol), collapse=",")               # per-site label color (by scanner model)
       conn3d_html <- paste0(
         "<div id=\"conn3d-sec\" style=\"display:none\">\n",                 # revealed only when echarts-gl loads (online)
-        "<h3>Inter-site connectivity (interactive 3D)</h3>\n",
+        "<h3>2. Inter-site connectivity (3D)</h3>\n",
         "<p>Bar height = traveling subjects shared between the two Site/Projects (diagonal excluded); ",
         "translucent bars colored by the blend of the two scanner-model colors. ",
         "Drag to rotate (it also auto-rotates), scroll to zoom. <b>Hover a bar</b> for the shared count, the M:F split and the shared subject IDs.</p>\n",
@@ -661,26 +661,209 @@ travel_html <- ""
       stats_html <- paste0(head_html, breadth_html, "<br><br>\n")
     }, error=function(e) message("traveling matrix skipped: ", conditionMessage(e)))
 
+    # big subject list -> its own page (linked), so it doesn't bloat the summary
+    writeLines(paste0("<!doctype html><meta charset=\"utf-8\"><title>Traveling subjects</title>",
+      "<body style=\"font-family:system-ui,sans-serif;margin:16px\"><h2>Traveling subjects &mdash; subject list (", nrow(tv), ")</h2>",
+      "<table border=\"1\" cellpadding=\"4\" style=\"border-collapse:collapse\"><thead><tr><th>Subject ID</th><th>#Site/Projects</th><th>Site/Project (Subject)</th></tr></thead><tbody>",
+      paste(trows, collapse="\n"), "</tbody></table>"), file.path(outdir,"traveling_subjects_table.html"))
     travel_html <- paste0(
       "<h2>Traveling subjects <span style=\"font-weight:normal;font-size:0.8em\">(same 4-digit Subject ID across &ge;2 Site/Projects: ", nrow(tv), ")</span></h2>\n",
       if (exists("model_legend_html")) model_legend_html else "",
+      "<h3>1. Site/Project &times; subject map</h3>\n",
       img_html,
       stats_html,
-      # inter-site connectivity (shared traveling subjects) right after the matrix statistics, 2D then interactive 3D
-      if (exists("conn_img") && nzchar(conn_img)) paste0(
-        "<h3>Inter-site connectivity</h3>\n",
-        "<p style=\"font-size:0.9em;color:#555;margin:2px 0\">Cell (i,j) = traveling subjects scanned at <b>both</b> Site/Projects; diagonal (grey) = that site's total; colorbar = shared-subject count. Site labels are colored by scanner model.</p>\n",
-        "<div style=\"max-width:640px\">", conn_img, "</div><br>\n") else "",
+      # (the site x site matrix duplicated the subject x site matrix above, so only the interactive 3D is kept)
       if (exists("conn3d_html")) conn3d_html else "",
-      "<h3>Subjects</h3>\n",
-      "<table border=\"1\" cellpadding=\"4\" style=\"border-collapse:collapse\">\n",
-      "<thead><tr><th>Subject ID</th><th>#Site/Projects</th><th>Site/Project (Subject)</th></tr></thead>\n<tbody>\n",
-      paste(trows, collapse="\n"), "\n</tbody></table><br>\n")
+      "<h3>3. Subjects</h3>\n",
+      "<p><a href=\"traveling_subjects_table.html\" target=\"_blank\">Open the full subject list (", nrow(tv), " subjects) in a new tab &raquo;</a></p>\n")
     utils::write.table(tv, file.path(outdir, "traveling_subjects.tsv"), sep="\t", row.names=FALSE, quote=FALSE)
   }
 }
-if (nzchar(site_html) || nzchar(travel_html))
-  html <- sub("<h2>QC Summary Flags</h2>", paste0(site_html, travel_html, "<h2>QC Summary Flags</h2>"), html, fixed=TRUE)
+# ---------- BQM domain scores + exclusion candidates (site-aware robust-z) ----------
+bqm_html <- ""
+excl_thr <- if (length(args) >= 8) suppressWarnings(as.numeric(args[8])) else 3
+if (!is.finite(excl_thr)) excl_thr <- 3
+# NOTE: BQM domains/exclusion are not finalized yet -> computed block disabled (not published).
+# Flip the FALSE to TRUE once the main-metric classification is settled.
+if (FALSE) tryCatch({
+  MET <- list(
+    "fMRI_Movement_RelativeRMS_mean_Movement_RelativeRMS_mean"=c("Motion","hi"),
+    "fMRI_Movement_AbsoluteRMS_mean_Movement_AbsoluteRMS_mean"=c("Motion","hi"),
+    "fMRI_Movement_Regressors_FD_stats_Q2"=c("Motion","hi"),
+    "dMRI_DiffusionQC_abs_motion"=c("Motion","hi"),
+    "dMRI_DiffusionQC_rel_motion"=c("Motion","hi"),
+    "dMRI_DiffusionQC_SNR"=c("SNR","lo"),
+    "dMRI_DiffusionQC_CNR"=c("SNR","lo"),
+    "fMRI_RestingStateStats_TSNR"=c("SNR","lo"),
+    "fMRI_RestingStateStats_CNR"=c("SNR","lo"),
+    "fMRI_ICA-FIX_stats_PercOutlier"=c("Artifact","hi"),
+    "dMRI_DiffusionQC_outliers"=c("Artifact","hi"),
+    "sMRI_T2wToT1w.mincost_FreeSurfer_BBR_mincost"=c("Registration","hi"),
+    "fMRI_EPI2T1w.mincost_FreeSurfer_BBR"=c("Registration","hi"),
+    "dMRI_nodif2T1w.mincost_FreeSurfer_BBR_mincost"=c("Registration","hi"),
+    "sMRI_SurfaceStats_SDS5"=c("Surface","hi"),
+    "sMRI_SurfaceStats_MyelinMap_similarity"=c("Surface","lo"),
+    "sMRI_SurfaceStats_thickness_similarity"=c("Surface","lo"),
+    "sMRI_SurfaceStats_Myelin_Biasfield_IQR"=c("Surface","hi"))
+  MET <- MET[names(MET) %in% names(wide)]
+  if (length(MET) >= 3 && all(c("Class","SubjectFolder") %in% names(wide))) {
+    doms <- unique(vapply(MET, `[`, character(1), 1)); cls <- as.character(wide$Class)
+    Z <- matrix(NA_real_, nrow(wide), length(MET), dimnames=list(NULL, names(MET)))
+    for (m in names(MET)) {
+      x <- suppressWarnings(as.numeric(wide[[m]])); sgn <- if (MET[[m]][2]=="hi") 1 else -1
+      for (cc in unique(cls)) {
+        idx <- which(cls==cc & is.finite(x)); if (length(idx) < 5) next
+        md <- stats::median(x[idx]); ma <- stats::mad(x[idx]); if (!is.finite(ma) || ma==0) next
+        Z[idx, m] <- sgn*(x[idx]-md)/ma
+      }
+    }
+    Z[] <- pmax(pmin(Z, 8), -8)                 # cap so a near-zero-MAD metric can't dominate
+    subj <- wide$SubjectFolder; usub <- unique(subj)
+    site <- vapply(usub, function(s) cls[which(subj==s)[1]], character(1))
+    subjZ <- t(vapply(usub, function(s){ r<-which(subj==s); colMeans(Z[r,,drop=FALSE], na.rm=TRUE) }, numeric(length(MET))))
+    colnames(subjZ) <- names(MET)
+    dom <- data.frame(SubjectFolder=usub, Site=unname(site), stringsAsFactors=FALSE)
+    for (dm in doms) { cc <- names(MET)[vapply(MET,`[`,character(1),1)==dm]; dom[[dm]] <- round(rowMeans(subjZ[,cc,drop=FALSE], na.rm=TRUE),2) }
+    dom$Overall <- round(apply(dom[doms],1,function(v) if (all(is.na(v))) NA_real_ else max(v,na.rm=TRUE)),2)
+    reason <- apply(dom[doms],1,function(v){ w<-doms[which(v>=excl_thr)]; if (length(w)) paste(sprintf("%s(%.1f)",w,v[v>=excl_thr]),collapse="; ") else "" })
+    dom$EXCLUDE <- ifelse(nzchar(reason),"YES","no"); dom$reason <- reason
+    dom <- dom[order(dom$EXCLUDE=="no", -dom$Overall),]
+    utils::write.table(dom, file.path(outdir,"bqm_domain_scores.tsv"), sep="\t", row.names=FALSE, quote=FALSE)
+    utils::write.table(dom[dom$EXCLUDE=="YES",,drop=FALSE], file.path(outdir,"exclusion_candidates.tsv"), sep="\t", row.names=FALSE, quote=FALSE)
+    loo <- -3; hio <- 8
+    pal <- grDevices::colorRampPalette(c("#2166AC","#4393C3","#F7F7F7","#F4A582","#D6604D","#B2182B","#67001F"))(101)
+    cof <- function(v){ v<-pmax(pmin(v,hio),loo); pal[round((v-loo)/(hio-loo)*100)+1] }
+    w <- dom[order(-dom$Overall),]; w <- w[is.finite(w$Overall) & w$Overall>=2,,drop=FALSE]; if (nrow(w)>60) w <- w[1:60,]
+    hm <- ""
+    if (nrow(w) >= 1) {
+      WM <- as.matrix(w[,doms]); lab <- sub("_001_MR1$","",w$SubjectFolder)
+      grDevices::png(file.path(outdir,"bqm_domain_heatmap.png"), width=820, height=16*nrow(w)+150, res=110)
+      op <- par(mai=c(0.2,2.6,1.1,1.2))
+      plot(NA,xlim=c(0.5,length(doms)+0.5),ylim=c(0.5,nrow(w)+0.5),xaxt="n",yaxt="n",xlab="",ylab="",bty="n")
+      for (i in seq_len(nrow(w))) for (j in seq_along(doms)) { v<-WM[i,j]; yv<-nrow(w)-i+1
+        rect(j-0.5,yv-0.5,j+0.5,yv+0.5,col=if (is.na(v)) "#DDDDDD" else cof(v),border="white")
+        if (!is.na(v)) text(j,yv,sprintf("%.1f",v),cex=0.5,col=if (!is.na(v)&&v>4) "white" else "black") }
+      text(seq_along(doms),nrow(w)+0.9,doms,srt=35,adj=0,xpd=NA,cex=0.7,font=2)
+      text(0.4,nrow(w):1,lab,adj=1,xpd=NA,cex=0.5)
+      nb<-length(pal); xb<-length(doms)+0.8; for (b in 1:nb) rect(xb,1+(nrow(w)-1)*(b-1)/nb,xb+0.3,1+(nrow(w)-1)*b/nb,col=pal[b],border=NA,xpd=NA)
+      for (tv in c(loo,0,3,hio)) text(xb+0.42,1+(nrow(w)-1)*(tv-loo)/(hio-loo),tv,adj=c(0,.5),cex=0.6,xpd=NA)
+      mtext(sprintf("BQM domain severity — worst subjects (Overall>=2, n=%d)",nrow(w)),3,line=2.3,font=2,cex=0.8,adj=0)
+      par(op); grDevices::dev.off()
+      hm <- "<img src=\"bqm_domain_heatmap.png\" style=\"max-width:820px;border:1px solid #ccc\"/><br>\n"
+    }
+    ex <- dom[dom$EXCLUDE=="YES",,drop=FALSE]
+    exrows <- if (nrow(ex)) paste(vapply(seq_len(nrow(ex)), function(i) paste0(
+      "<tr><td>", ex$SubjectFolder[i], "</td><td>", ex$Site[i], "</td>",
+      paste(sprintf("<td>%.1f</td>", as.numeric(unlist(ex[i,doms]))), collapse=""),
+      "<td><b>", sprintf("%.1f",ex$Overall[i]), "</b></td><td>", ex$reason[i], "</td></tr>"), character(1)), collapse="\n") else ""
+    bqm_html <- paste0(
+      "<h2>BQM domain scores &amp; exclusion candidates</h2>\n",
+      "<p style=\"font-size:0.9em;color:#555;margin:2px 0\">Each image-quality metric is turned into a <b>within-site</b> robust z-score (MAD; oriented so higher = worse; capped &plusmn;8), then grouped into domains. ",
+      "A <b>domain score</b> is the mean z of its metrics; <b>Overall</b> = the worst (max) domain. <b>EXCLUDE = YES</b> when any domain &ge; ", excl_thr,
+      ". Full tables: <code>bqm_domain_scores.tsv</code>, <code>exclusion_candidates.tsv</code>.</p>\n",
+      hm,
+      "<p style=\"font-weight:bold;margin:8px 0 2px\">Exclusion candidates (", nrow(ex), " / ", nrow(dom), " subjects; any domain &ge; ", excl_thr, ")</p>\n",
+      "<table border=\"1\" cellpadding=\"4\" style=\"border-collapse:collapse\">\n",
+      "<thead><tr><th>Subject</th><th>Site</th>", paste(sprintf("<th>%s</th>",doms),collapse=""), "<th>Overall</th><th>reason</th></tr></thead>\n<tbody>\n",
+      exrows, "\n</tbody></table><br>\n")
+  }
+}, error=function(e) message("BQM domain scores skipped: ", conditionMessage(e)))
+
+# ---------- Traveling-subject BQM reliability (two-way decomposition) + correlation clustering ----------
+ts_html <- ""
+tryCatch({
+  id_of2 <- function(s){ m<-regmatches(s,regexpr("_[0-9]{4}_",s)); if (length(m)) gsub("_","",m) else NA_character_ }
+  BQMc <- grep("^(sMRI|fMRI|dMRI)_", names(wide), value=TRUE)
+  BQMc <- BQMc[vapply(BQMc, function(m) sum(is.finite(suppressWarnings(as.numeric(wide[[m]])))) >= 10, logical(1))]
+  if (length(BQMc) >= 4 && all(c("Class","SubjectFolder") %in% names(wide))) {
+    for (m in BQMc) wide[[m]] <- suppressWarnings(as.numeric(wide[[m]]))
+    cls <- as.character(wide$Class); allsites <- sort(unique(cls)); SID <- vapply(wide$SubjectFolder, id_of2, character(1))
+    mpolish <- function(sid, site, val){
+      grand <- stats::median(val); se <- setNames(rep(0,length(unique(site))), unique(site)); su <- NULL
+      for (it in 1:100){ su <- tapply(val-grand-se[site], sid, stats::median)
+        ne <- tapply(val-grand-su[sid], site, stats::median); ne <- ne - stats::median(ne)
+        if (it>1 && max(abs(ne[names(se)]-se[names(se)]),na.rm=TRUE) < 1e-9){ se<-ne; break }; se<-ne }
+      list(grand=grand, subj=su, site=se, resid=val-grand-su[sid]-se[site]) }
+    rows <- list(); anom <- list()
+    for (m in BQMc){
+      x <- wide[[m]]; ok <- is.finite(x) & !is.na(SID); if (sum(ok) < 10) next
+      ag <- aggregate(x[ok], by=list(SID=SID[ok], Site=cls[ok]), FUN=stats::median); names(ag)[3] <- "val"
+      ts <- names(which(tapply(ag$Site, ag$SID, function(s) length(unique(s))) >= 2)); ag <- ag[ag$SID %in% ts,]
+      if (nrow(ag) < 10 || length(unique(ag$Site)) < 2) next
+      fit <- mpolish(ag$SID, ag$Site, ag$val)
+      noise <- 1.4826*stats::median(abs(fit$resid)); subjsd <- 1.4826*stats::mad(fit$subj); sitesd <- 1.4826*stats::mad(fit$site)
+      icc <- if ((subjsd^2+sitesd^2+noise^2)>0) subjsd^2/(subjsd^2+sitesd^2+noise^2) else NA_real_
+      rows[[m]] <- c(list(BQM=m, n_subj=length(ts), n_sess=nrow(ag), meas_noise=round(noise,4),
+                          subj_spread=round(subjsd,4), site_spread=round(sitesd,4), ICC=round(icc,2)), as.list(round(fit$site[allsites],4)))
+      if (is.finite(noise) && noise>0){ z<-fit$resid/noise; for (b in which(abs(z)>3)) anom[[length(anom)+1]] <-
+        data.frame(SID=ag$SID[b],Site=ag$Site[b],BQM=m,value=round(ag$val[b],4),resid=round(fit$resid[b],4),resid_z=round(z[b],2),stringsAsFactors=FALSE) }
+    }
+    if (length(rows) >= 3){
+      bias <- do.call(rbind, lapply(rows, function(r) as.data.frame(r, check.names=FALSE, stringsAsFactors=FALSE)))
+      utils::write.table(bias, file.path(outdir,"bqm_site_bias.tsv"), sep="\t", row.names=FALSE, quote=FALSE)
+      an <- if (length(anom)) do.call(rbind, anom) else data.frame(); if (nrow(an)) an <- an[order(-abs(an$resid_z)),]
+      utils::write.table(an, file.path(outdir,"bqm_ts_session_anomalies.tsv"), sep="\t", row.names=FALSE, quote=FALSE)
+      short <- sub("^(sMRI|fMRI|dMRI)_","",bias$BQM)
+      # variance decomposition plot (subject=ICC, site, noise)
+      vs<-bias$subj_spread^2; vt<-bias$site_spread^2; vn<-bias$meas_noise^2; tt<-vs+vt+vn; tt[tt==0]<-NA
+      Pm<-cbind(vs/tt, vt/tt, vn/tt); o<-order(bias$ICC); Pm<-Pm[o,,drop=FALSE]
+      grDevices::png(file.path(outdir,"bqm_icc.png"), width=1120, height=22*nrow(Pm)+110, res=120)
+      op<-par(mai=c(0.6,4.2,0.4,1.0),xpd=NA)
+      bpp<-barplot(t(Pm),horiz=TRUE,col=c("#0072B2","#E69F00","#BBBBBB"),border="white",names.arg=short[o],las=1,cex.names=0.78,xlab="proportion of robust variance",xlim=c(0,1))
+      text(1.015,bpp,sprintf("%.2f",bias$ICC[o]),adj=0,cex=0.72)
+      legend("bottomright",inset=c(0,-0.08),fill=c("#0072B2","#E69F00","#BBBBBB"),legend=c("subject (ICC)","site (harmonizable)","noise"),bty="n",cex=0.6,horiz=TRUE)
+      title(sprintf("TS variance decomposition — %d BQM (subject fraction = ICC)",nrow(Pm)),cex.main=0.8,adj=0)
+      par(op); grDevices::dev.off()
+      # site-bias heatmap
+      Sm <- as.matrix(bias[,allsites,drop=FALSE]); Sm <- sweep(Sm,1,ifelse(bias$meas_noise>0,bias$meas_noise,NA),"/"); Sm<-pmax(pmin(Sm,4),-4)
+      pal<-grDevices::colorRampPalette(c("#2166AC","#4393C3","#F7F7F7","#F4A582","#D6604D","#B2182B"))(101)
+      cof<-function(v) if (is.na(v)) "#DDDDDD" else pal[round((v+4)/8*100)+1]; nb<-nrow(Sm); nm<-ncol(Sm)
+      grDevices::png(file.path(outdir,"bqm_site_bias.png"), width=54*nm+480, height=22*nb+150, res=120)
+      op<-par(mai=c(1.7,4.2,0.45,0.5))
+      plot(NA,xlim=c(0.5,nm+0.5),ylim=c(0.5,nb+0.5),xaxt="n",yaxt="n",xlab="",ylab="",bty="n")
+      for(i in 1:nb)for(j in 1:nm){v<-Sm[i,j];yv<-nb-i+1;rect(j-.5,yv-.5,j+.5,yv+.5,col=cof(v),border="white")}
+      text(1:nm,0.3,allsites,srt=45,adj=1,xpd=NA,cex=0.78); text(0.4,nb:1,short,adj=1,xpd=NA,cex=0.74)
+      mtext(sprintf("Site bias per BQM (%d BQM; units = measurement noise; red=high, blue=low)",nb),3,line=0.3,cex=0.7,font=2,adj=0)
+      par(op); grDevices::dev.off()
+      # correlation clustering (dedup) + representatives
+      cl_html <- ""
+      tryCatch({
+        sf<-wide$SubjectFolder; us<-unique(sf)
+        Mcl<-sapply(bias$BQM,function(m){ tapply(wide[[m]],sf,function(z) if(all(is.na(z))) NA_real_ else stats::median(z,na.rm=TRUE))[us] })
+        Cc<-suppressWarnings(stats::cor(Mcl,use="pairwise.complete.obs",method="spearman")); Cc[is.na(Cc)]<-0
+        hc<-stats::hclust(stats::as.dist(1-abs(Cc)),method="average"); clid<-stats::cutree(hc,h=0.3)
+        iccv<-bias$ICC; repf<-rep("",length(clid))
+        for (g in unique(clid)){ ix<-which(clid==g); repf[ix[order(-ifelse(is.na(iccv[ix]),-1,iccv[ix]))][1]]<-"YES" }
+        cltab<-data.frame(cluster=as.integer(clid), BQM=short, ICC=iccv, representative=repf, stringsAsFactors=FALSE)
+        cltab<-cltab[order(cltab$cluster,-ifelse(is.na(cltab$ICC),-1,cltab$ICC)),]
+        utils::write.table(cltab, file.path(outdir,"bqm_clusters.tsv"), sep="\t", row.names=FALSE, quote=FALSE)
+        hc$labels<-short
+        grDevices::png(file.path(outdir,"bqm_cluster_dendro.png"), width=1120, height=22*length(short)+110, res=120)
+        op<-par(mai=c(0.5,0.15,0.5,4.3)); plot(stats::as.dendrogram(hc),horiz=TRUE,nodePar=list(lab.cex=0.72,pch=NA),xlab="1 - |Spearman r|")
+        abline(v=0.3,col="#D55E00",lty=2); title(sprintf("BQM correlation clustering (|r|>0.7 -> %d clusters)",length(unique(clid))),cex.main=0.8); par(op); grDevices::dev.off()
+        reps<-cltab[cltab$representative=="YES",,drop=FALSE]; reps<-reps[order(-ifelse(is.na(reps$ICC),-1,reps$ICC)),]
+        rr<-paste(sprintf("<tr><td>%d</td><td>%s</td><td>%s</td></tr>",reps$cluster,reps$BQM,ifelse(is.na(reps$ICC),"NA",sprintf("%.2f",reps$ICC))),collapse="\n")
+        cl_html<-paste0("<h4>Correlation clusters &amp; representatives</h4>\n",
+          "<p style=\"font-size:0.9em;color:#555;margin:2px 0\">BQM clustered by |Spearman r| (cut at |r|&gt;0.7). Near-duplicate metrics merge; the representative per cluster is the one with the highest ICC. ",length(unique(clid))," clusters from ",length(short)," BQM. Table: <code>bqm_clusters.tsv</code>.</p>\n",
+          "<div style=\"display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start\">",
+          "<div><a href=\"bqm_cluster_dendro.png\" target=\"_blank\" title=\"Open full image in a new tab\"><img src=\"bqm_cluster_dendro.png\" style=\"max-width:560px;border:1px solid #ccc;cursor:zoom-in\"/></a></div>",
+          "<div><table border=\"1\" cellpadding=\"3\" style=\"border-collapse:collapse;font-size:0.85em\"><thead><tr><th>cluster</th><th>representative BQM</th><th>ICC</th></tr></thead><tbody>\n",rr,"\n</tbody></table></div></div><br>\n")
+      }, error=function(e) message("BQM clustering skipped: ", conditionMessage(e)))
+      ts_html <- paste0(
+        "<h3>4. BQM reliability</h3>\n",
+        "<p style=\"font-size:0.9em;color:#555;margin:2px 0\">Using subjects scanned at &ge;2 Site/Projects, each BQM is decomposed (robust two-way median polish) into <b>subject</b> + <b>site</b> + residual. ",
+        "<b>ICC</b> = subject fraction of variance (cross-site reproducibility); <b>site bias</b> = each site's systematic offset (in measurement-noise units); residual = measurement noise. ",
+        "Tables: <code>bqm_site_bias.tsv</code>, <code>bqm_ts_session_anomalies.tsv</code>.</p>\n",
+        "<div style=\"display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start\">",
+        "<div><a href=\"bqm_icc.png\" target=\"_blank\" title=\"Open full image in a new tab\"><img src=\"bqm_icc.png\" style=\"max-width:560px;border:1px solid #ccc;cursor:zoom-in\"/></a><div style=\"font-size:0.8em;color:#555\">Variance decomposition (blue=subject=ICC, orange=site, grey=noise). <i>Click to open full size in a new tab.</i></div></div>",
+        "<div><a href=\"bqm_site_bias.png\" target=\"_blank\" title=\"Open full image in a new tab\"><img src=\"bqm_site_bias.png\" style=\"max-width:560px;border:1px solid #ccc;cursor:zoom-in\"/></a><div style=\"font-size:0.8em;color:#555\">Site bias per BQM (red=site reads high, blue=low). <i>Click to open full size in a new tab.</i></div></div>",
+        "</div><br>\n", cl_html)
+    }
+  }
+}, error=function(e) message("TS BQM reliability skipped: ", conditionMessage(e)))
+
+if (nzchar(site_html) || nzchar(travel_html) || nzchar(bqm_html) || nzchar(ts_html))
+  html <- sub("<h2>QC Summary Flags</h2>", paste0(site_html, travel_html, bqm_html, ts_html, "<h2>QC Summary Flags</h2>"), html, fixed=TRUE)
 
 writeLines(html, out_html)
 
