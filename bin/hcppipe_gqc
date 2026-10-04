@@ -27,6 +27,12 @@ echo " Optional arguments:"
 echo "  -o <output folder name> : default is <Group Data Folder>/QC"
 echo "  -p <size>               : point size of QC chart (default 1.0)"
 echo "  -n                      : no labels for QC chart"
+echo "  -a                      : append mode - merge the protocols/subjects given on the"
+echo "                            command line into the EXISTING group in the output folder"
+echo "                            (reads report/Protocol-Subjects-List.txt) and re-analyses"
+echo "                            the union. Use it to add a site/IDs later without"
+echo "                            re-listing everything, e.g.:"
+echo "                              hcppipe_gqc -a -o QC_HARP <Group> <NewSite> <ID1>@<ID2>"
 echo ""
 echo " Example usage 1 - QC by protocol:"
 echo ""
@@ -157,18 +163,14 @@ GenerateSummary () {
     return 1
   fi
 
-  # (1) Combined wide summary across ALL protocols (keeps previous behavior, but now truly combined)
+  # Build a column-name-aware UNION wide tsv. Subjects' qc_metrics.tsv schemas can differ
+  # (e.g. an older dMRI_DiffusionQC_motion vs newer *_abs_motion/*_rel_motion when some subjects
+  # were re-QC'd with a newer hcppipe_qc). Concatenating by POSITION would shift columns and put
+  # metric values into the Class column; instead align by column NAME and fill missing cells NA. - TH
   wide_all="$summarydir/qc_summary_wide.tsv"
-  : > "$wide_all"
-  header_written_all=0
 
-  # (2) Per-protocol wide summaries: $summarydir/<Protocol>/qc_summary_wide.tsv
-  for p in "${protos[@]}"; do
-    mkdir -p "$summarydir/$p"
-    : > "$summarydir/$p/qc_summary_wide.tsv"
-  done
-
-  # Iterate subject list WITHOUT subshell so header flags work reliably
+  # valid (cls, subj, qcfile) triples
+  maplist="$summarydir/.qc_filemap.txt"; : > "$maplist"
   while IFS=$'\t' read -r cls sid subj; do
     [[ -z "${cls:-}" || -z "${subj:-}" ]] && continue
     qc="$GroupStudyFolder/$cls/$subj/QC/qc_metrics.tsv"
@@ -176,56 +178,52 @@ GenerateSummary () {
       logMsg "WARNING: missing qc_metrics.tsv for $cls/$subj : $qc"
       continue
     fi
-
-    # Write headers once
-    if [[ $header_written_all -eq 0 ]]; then
-      head -n 1 "$qc" | awk -F'\t' 'BEGIN{OFS="\t"}{print "Class","Modality","Run","SubjectFolder",$0}' >> "$wide_all"
-      header_written_all=1
-    fi
-
-    wide_p="$summarydir/$cls/qc_summary_wide.tsv"
-    if [[ ! -s "$wide_p" ]]; then
-      # first time this protocol file gets data -> write header
-      head -n 1 "$qc" | awk -F'\t' 'BEGIN{OFS="\t"}{print "Class","Modality","Run","SubjectFolder",$0}' >> "$wide_p"
-    fi
-
-    # Append data rows
-    awk -F'\t' -v OFS='\t' -v cls="$cls" -v subj="$subj" '
-      NR==1{next}
-      {print cls,$2,$3,subj,$0}
-    ' "$qc" >> "$wide_all"
-
-    awk -F'\t' -v OFS='\t' -v cls="$cls" -v subj="$subj" '
-      NR==1{next}
-      {print cls,$2,$3,subj,$0}
-    ' "$qc" >> "$wide_p"
+    printf '%s\t%s\t%s\n' "$cls" "$subj" "$qc" >> "$maplist"
   done < <(tail -n +2 "$subjlist")
 
-  if [[ ! -s "$wide_all" ]]; then
+  if [[ ! -s "$maplist" ]]; then
     logMsg "ERROR: qc_summary_wide.tsv is empty (no valid qc_metrics.tsv found for listed subjects)"
     return 1
   fi
 
-  # Remove empty per-protocol files (optional cleanliness)
+  # master union of qc_metrics.tsv column names, first-seen order (across all subjects)
+  masterhdr=$(while IFS=$'\t' read -r cls subj qc; do head -n 1 "$qc"; done < "$maplist" \
+              | tr '\t' '\n' | awk 'NF && !seen[$0]++' | paste -sd'\t' -)
+
+  printf 'Class\tModality\tRun\tSubjectFolder\t%s\n' "$masterhdr" > "$wide_all"
+  while IFS=$'\t' read -r cls subj qc; do
+    awk -F'\t' -v OFS='\t' -v cls="$cls" -v subj="$subj" -v master="$masterhdr" '
+      BEGIN{ nm=split(master,M,"\t") }
+      NR==1{ for(i=1;i<=NF;i++) pos[$i]=i; next }
+      { line=cls OFS $2 OFS $3 OFS subj
+        for(j=1;j<=nm;j++){ v=(M[j] in pos)?$(pos[M[j]]):"NA"; line=line OFS v }
+        print line }
+    ' "$qc" >> "$wide_all"
+  done < "$maplist"
+
+  # per-protocol wide files: split the combined (aligned) table by Class, same header
+  _hdr=$(head -n 1 "$wide_all")
   for p in "${protos[@]}"; do
-    wide_p="$summarydir/$p/qc_summary_wide.tsv"
-    if [[ ! -s "$wide_p" ]]; then
-      rm -f "$wide_p"
-      rmdir "$summarydir/$p" 2>/dev/null || true
+    mkdir -p "$summarydir/$p"
+    { printf '%s\n' "$_hdr"; awk -F'\t' -v p="$p" 'NR>1 && $1==p' "$wide_all"; } > "$summarydir/$p/qc_summary_wide.tsv"
+    if [[ $(wc -l < "$summarydir/$p/qc_summary_wide.tsv") -le 1 ]]; then
+      rm -f "$summarydir/$p/qc_summary_wide.tsv"; rmdir "$summarydir/$p" 2>/dev/null || true
     fi
   done
 
-  logMsg "Generated $wide_all and per-protocol qc_summary_wide.tsv under $summarydir/<Protocol>/"
+  rm -f "$maplist"
+  logMsg "Generated $wide_all (column-name union across subjects) and per-protocol files under $summarydir/<Protocol>/"
 }
 
 
 commands="$@"
 OutputFolder=QC
+AppendMode=0
 
 pointsize="--point-size 1.0"
 nonlabel=""
 
-while [[ "$1" = -o || "$1" = -n || "$1" = -p ]] ; do
+while [[ "$1" = -o || "$1" = -n || "$1" = -p || "$1" = -a ]] ; do
 	if [ "$1" = -o ] ; then
 		OutputFolder="$2"
 		shift 2
@@ -234,6 +232,9 @@ while [[ "$1" = -o || "$1" = -n || "$1" = -p ]] ; do
 		shift 2
 	elif [ "$1" = -n ] ; then
 		nonlabel="--no-label"
+		shift 1
+	elif [ "$1" = -a ] ; then
+		AppendMode=1
 		shift 1
 	else
 		break
@@ -253,6 +254,45 @@ while [[ -n ${2+x}  ]] ; do
 done
 
 OutputFolder=$GroupStudyFolder/$OutputFolder
+
+# --- append mode: union the command-line protocols/subjects with the existing group ---
+if [ "$AppendMode" = 1 ] ; then
+	_existing="$OutputFolder/report/Protocol-Subjects-List.txt"
+	if [ -e "$_existing" ] ; then
+		logMsg "Append mode: merging command-line input with existing $_existing"
+		declare -A _P2S=()
+		_order=""
+		_add() {   # $1=protocol $2=subject : add subject to protocol (dedup, keep protocol order)
+			local p="$1" s="$2"
+			{ [ -z "$p" ] || [ -z "$s" ] ; } && return
+			case " ${_P2S[$p]:-} " in *" $s "*) ;; *)
+				_P2S[$p]="${_P2S[$p]:+${_P2S[$p]} }$s"
+				case " $_order " in *" $p "*) ;; *) _order="${_order:+$_order }$p" ;; esac ;;
+			esac
+		}
+		# 1) seed from the existing list (skip the header line)
+		while IFS=$'\t' read -r _p _id _s ; do
+			[ "$_p" = Protocol ] && continue
+			_add "$_p" "$_s"
+		done < "$_existing"
+		# 2) add the protocols/subjects given on this command line
+		_n=$(echo $ProtocolsList | awk '{print NF}')
+		_i=1
+		while [ $_i -le $_n ] ; do
+			_p=$(echo $ProtocolsList | cut -d ' ' -f $_i)
+			for _s in $(echo $SubjectsList | cut -d ' ' -f $_i | tr '@' ' ') ; do _add "$_p" "$_s" ; done
+			_i=$((_i+1))
+		done
+		# 3) rebuild ProtocolsList / SubjectsList from the union
+		ProtocolsList=""; SubjectsList=""
+		for _p in $_order ; do
+			ProtocolsList+=" $_p"
+			SubjectsList+=" $(echo ${_P2S[$_p]} | tr ' ' '@')"
+		done
+	else
+		logMsg "Append mode (-a) requested but no existing list at $_existing; running as a fresh group"
+	fi
+fi
 
 logMsg "GroupStudyFolder:$GroupStudyFolder"
 logMsg "OutputFolder: $OutputFolder"

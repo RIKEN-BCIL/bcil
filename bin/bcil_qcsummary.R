@@ -389,8 +389,10 @@ if (nzchar(gsf)) {
       sidv<-c(sidv,id_of(s)); agev<-c(agev,si["Patient's Age"]); sexv<-c(sexv,si["Patient's Sex"])
     }
     # demographics: one age/sex per distinct subject ID (first non-missing)
-    agn <- vapply(agev, parse_age, integer(1)); sxn <- vapply(sexv, parse_sex, character(1))
-    DEMO <<- rbind(DEMO, data.frame(ID=sidv, Age=agn, Sex=sxn, stringsAsFactors=FALSE))
+    # unname(): si["Patient's Age"] returns an NA-named element for subjects lacking the field,
+    # and those NA names propagate to data.frame row/column names -> error on the full cohort. - TH
+    agn <- unname(vapply(agev, parse_age, integer(1))); sxn <- unname(vapply(sexv, parse_sex, character(1)))
+    DEMO <<- rbind(DEMO, data.frame(ID=unname(sidv), Age=agn, Sex=sxn, stringsAsFactors=FALSE))
     uid <- unique(sidv[!is.na(sidv)])
     age_by <- vapply(uid, function(i){ v<-agn[sidv==i & !is.na(agn)]; if (length(v)) v[1] else NA_integer_ }, integer(1))
     sex_by <- vapply(uid, function(i){ v<-sxn[sidv==i & !is.na(sxn)]; if (length(v)) v[1] else NA_character_ }, character(1))
@@ -457,7 +459,7 @@ if (nzchar(gsf)) {
       ltxt <- site_lab_txt(usites)
       # tight margins: fit label widths exactly, square plot fills the canvas (no wasted whitespace)
       maxch  <- max(nchar(ltxt))
-      left_in <- maxch*0.052 + 0.15; bot_in <- left_in*0.72 + 0.05; top_in <- 0.42; right_in <- 0.1
+      left_in <- maxch*0.052 + 0.15; bot_in <- left_in*0.72 + 0.05; top_in <- 0.42; right_in <- 1.25  # right room for colorbar
       matin  <- ns*0.3                                   # 0.3 in per cell
       cf <- "site_connectivity.png"
       grDevices::png(file.path(outdir, cf),
@@ -473,34 +475,41 @@ if (nzchar(gsf)) {
       }
       text(seq_len(ns), 0.35, ltxt, srt=45, adj=1, xpd=NA, cex=0.6, col=lcol)   # bottom labels (model in parens, by model color)
       text(0.35, ns:1, ltxt, adj=1, xpd=NA, cex=0.6, col=lcol)                  # left labels
-      mtext("Inter-site connectivity — shared HARP subjects (diagonal = site total)", side=3, line=1.4, font=2, cex=0.9)
+      # colorbar (right margin): blue ramp = number of shared (traveling) subjects
+      nb <- length(ramp); xb0 <- ns+0.95; xb1 <- ns+1.35; yb0 <- 1; yb1 <- ns
+      for (b in seq_len(nb)) rect(xb0, yb0+(yb1-yb0)*(b-1)/nb, xb1, yb0+(yb1-yb0)*b/nb, col=ramp[b], border=NA, xpd=NA)
+      rect(xb0, yb0, xb1, yb1, border="#888888", xpd=NA)
+      ticks <- unique(c(0L, vmax)); for (tv in ticks) text(xb1+0.12, yb0+(yb1-yb0)*tv/vmax, tv, adj=c(0,0.5), cex=0.55, xpd=NA)
+      text(xb0, yb1+0.75, "# shared\nsubjects (TS)", adj=c(0,0), cex=0.55, font=2, xpd=NA)
+      mtext("Inter-site connectivity — shared traveling subjects (diagonal = site total)", side=3, line=1.4, font=2, cex=0.9)
       par(op); grDevices::dev.off()
-      conn_img <- paste0("<img src=\"", cf, "\" style=\"width:100%;max-width:560px;border:1px solid #ccc\"/>")
+      conn_img <- paste0("<img src=\"", cf, "\" style=\"width:100%;max-width:640px;border:1px solid #ccc\"/>")
       utils::write.table(data.frame(Site=rownames(co), co, check.names=FALSE),
                          file.path(outdir, "site_connectivity.tsv"), sep="\t", row.names=FALSE, quote=FALSE)
-      ## offline-capable rotating 3D "cityscape" GIF (base R persp + ImageMagick)
-      co0 <- co; diag(co0) <- 0L
-      gifn <- tryCatch(render_conn_gif(co0, lcol, outdir), error=function(e){ message("conn gif skipped: ", conditionMessage(e)); "" })
-      gif_html <- if (nzchar(gifn)) paste0("<img src=\"", gifn, "\" style=\"width:100%;max-width:560px;border:1px solid #ccc\"/>") else ""
       ## interactive 3D bar chart (ECharts bar3D) — same "cityscape" style: translucent model-blend bars,
       ## tall skyscrapers, white ground with grid, cast shadows, slow auto-rotation
       scol <- lcol                                        # model color per site
       mix_hex <- function(a, b){ m <- round((grDevices::col2rgb(a) + grDevices::col2rgb(b)) / 2); sprintf("#%02X%02X%02X", m[1], m[2], m[3]) }
+      sm <- tapply(DEMO$Sex, DEMO$ID, function(x){ x<-x[!is.na(x)]; if (length(x)) x[1] else NA_character_ })  # ID -> sex
+      ejs <- function(s) gsub('"', '', s)
       idxs <- which(co > 0 & row(co) != col(co), arr.ind=TRUE)
       cells <- if (nrow(idxs)) paste(vapply(seq_len(nrow(idxs)), function(k){
                  i <- idxs[k,"row"]; j <- idxs[k,"col"]
-                 sprintf('{"value":[%d,%d,%d],"itemStyle":{"color":"%s","opacity":0.82}}', j-1L, i-1L, co[i,j], mix_hex(scol[i], scol[j]))
+                 ids <- rownames(inc)[inc[,i] > 0 & inc[,j] > 0]          # subjects shared by both sites
+                 sx <- sm[ids]; nM <- sum(sx=="M", na.rm=TRUE); nF <- sum(sx=="F", na.rm=TRUE)
+                 sprintf('{"value":[%d,%d,%d],"mf":"%d:%d","ids":"%s","itemStyle":{"color":"%s","opacity":0.82}}',
+                         j-1L, i-1L, co[i,j], nM, nF, ejs(paste(ids, collapse=", ")), mix_hex(scol[i], scol[j]))
                }, character(1)), collapse=",") else ""
       cats   <- paste(sprintf('"%s"', gsub('"','',ltxt)), collapse=",")
       lcolstr <- paste(sprintf('"%s"', lcol), collapse=",")               # per-site label color (by scanner model)
       conn3d_html <- paste0(
         "<div id=\"conn3d-sec\" style=\"display:none\">\n",                 # revealed only when echarts-gl loads (online)
         "<h3>Inter-site connectivity (interactive 3D)</h3>\n",
-        "<p>Same &quot;cityscape&quot; as the animation: bar height = shared HARP subjects between the two Site/Projects ",
-        "(diagonal excluded), translucent bars colored by the blend of the two scanner-model colors. ",
-        "Drag to rotate (it also auto-rotates), scroll to zoom, hover a bar for the count.</p>\n",
+        "<p>Bar height = traveling subjects shared between the two Site/Projects (diagonal excluded); ",
+        "translucent bars colored by the blend of the two scanner-model colors. ",
+        "Drag to rotate (it also auto-rotates), scroll to zoom. <b>Hover a bar</b> for the shared count, the M:F split and the shared subject IDs.</p>\n",
         model_legend_html,
-        "<div id=\"conn3d\" style=\"width:100%;max-width:900px;height:640px;background:#ffffff\"></div>\n",
+        "<div id=\"conn3d\" style=\"width:100%;height:76vh;min-height:620px;background:#ffffff\"></div>\n",
         "</div>\n",
         "<script src=\"https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js\"></script>\n",
         "<script src=\"https://cdn.jsdelivr.net/npm/echarts-gl@2.0.9/dist/echarts-gl.min.js\"></script>\n",
@@ -508,39 +517,31 @@ if (nzchar(gsf)) {
         "if(!el||!window.echarts)return;",                                  # offline / CDN blocked -> 2D + GIF only
         "var cats=[", cats, "];var data=[", cells, "];var lcols=[", lcolstr, "];",
         "var lc=function(v,i){return lcols[i];};",
-        "try{var ch=echarts.init(el);ch.setOption({backgroundColor:'#ffffff',",
-        "tooltip:{formatter:function(p){return cats[p.value[0]]+'<br>'+cats[p.value[1]]+'<br>shared: '+p.value[2];}},",
+        "try{sec.style.display='block';var ch=echarts.init(el);ch.setOption({backgroundColor:'#ffffff',",
+        "tooltip:{formatter:function(p){var d=p.data||{};return cats[p.value[0]]+' × '+cats[p.value[1]]+'<br>shared: '+p.value[2]+(d.mf?' (M:F='+d.mf+')':'')+(d.ids?'<br>IDs: '+d.ids:'');}},",
         "xAxis3D:{type:'category',data:cats,axisLabel:{interval:0,rotate:40,fontSize:9,color:lc}},",
         "yAxis3D:{type:'category',data:cats,axisLabel:{interval:0,rotate:-40,fontSize:9,color:lc}},",
         "zAxis3D:{type:'value',name:'shared'},",
-        "grid3D:{boxWidth:110,boxDepth:110,boxHeight:95,environment:'#ffffff',",
+        "grid3D:{boxWidth:160,boxDepth:160,boxHeight:95,environment:'#ffffff',",
         "axisLine:{lineStyle:{color:'#cccccc'}},splitLine:{lineStyle:{color:'#e3e6e9'}},",
         "light:{main:{intensity:1.2,shadow:true,shadowQuality:'high',alpha:35,beta:35},ambient:{intensity:0.55}},",
-        "viewControl:{distance:220,alpha:18,beta:35,autoRotate:true,autoRotateSpeed:5,autoRotateAfterStill:3}},",
+        "viewControl:{distance:250,alpha:18,beta:35,autoRotate:true,autoRotateSpeed:5,autoRotateAfterStill:3}},",
         "series:[{type:'bar3D',data:data,shading:'realistic',realisticMaterial:{roughness:0.6,metalness:0},",
         "bevelSize:0.12,label:{show:false},emphasis:{label:{show:true,formatter:function(p){return p.value[2];}}}}]});",
-        "sec.style.display='block';",                                       # online + bar3D available -> reveal 3D
-        "}catch(e){}})();</script>\n")
+        "setTimeout(function(){ch.resize();},0);window.addEventListener('resize',function(){ch.resize();});",  # fit full container width
+        "}catch(e){sec.style.display='none';}})();</script>\n")                 # bar3D unavailable -> hide, keep 2D only
      }
     }
+    # Cohort overview = demographics + age histogram only. The inter-site connectivity
+    # (2D matrix + interactive 3D) is shown in the Traveling subjects section instead. - TH
     demo_html <- paste0(
-      "<h3>Cohort overview</h3>\n",
+      "<h2>Cohort overview</h2>\n",
       "<p><b>", length(uids), " unique subjects</b>",
       if (length(av)) sprintf("; age %.1f &plusmn; %.1f yr (median %d, range %d&ndash;%d; n=%d with age)",
                               mean(av), stats::sd(av), as.integer(stats::median(av)), min(av), max(av), length(av)) else "",
       sprintf("; sex M:F = %d:%d (n=%d with sex).</p>\n", nM, nF, nM+nF),
-      model_legend_html,
-      "<div style=\"display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start\">",
-      "<div style=\"flex:0 1 520px\">", age_img,
-      "<div style=\"font-size:0.85em;color:#555\">Age at first scan, 5-year bins, split by sex.</div></div>",
-      "<div style=\"flex:0 1 560px\">", conn_img,
-      "<div style=\"font-size:0.85em;color:#555\">Cell (i,j)=HARP subjects scanned at both sites; diagonal (grey)=site total; darker=more shared.</div></div>",
-      "</div><br>\n",
-      if (nzchar(gif_html)) paste0(
-        "<h3>Inter-site connectivity (3D)</h3>\n",
-        "<p style=\"font-size:0.9em;color:#555;margin:2px 0\">Rotating 3-D &quot;cityscape&quot; (works offline): each building is a pair of Site/Projects, height = shared HARP subjects, translucent and colored by the blend of the two scanner-model colors.</p>\n",
-        gif_html, "<br><br>\n") else "",
-      conn3d_html)
+      "<div style=\"max-width:520px\">", age_img,
+      "<div style=\"font-size:0.85em;color:#555\">Age at first scan, 5-year bins, split by sex.</div></div>\n")
     utils::write.table(data.frame(ID=uids, AgeAtFirstScan=age1, Sex=sex1),
                        file.path(outdir, "cohort_demographics.tsv"), sep="\t", row.names=FALSE, quote=FALSE)
   }, error=function(e) message("cohort overview skipped: ", conditionMessage(e)))
@@ -647,8 +648,15 @@ travel_html <- ""
       brows <- paste0("<tr><td>", bt$k, "</td><td>", bt$Freq, "</td></tr>", collapse="\n")
       breadth_html <- paste0(
         "<table border=\"1\" cellpadding=\"4\" style=\"border-collapse:collapse;display:inline-block;vertical-align:top;margin-right:24px\">\n",
-        "<caption style=\"font-weight:bold\">Subjects by #Site/Projects visited</caption>\n",
-        "<thead><tr><th>#Site/Projects</th><th>#Subjects</th></tr></thead>\n<tbody>\n", brows, "\n</tbody></table>\n")
+        "<caption style=\"font-weight:bold;white-space:nowrap\">Travel breadth</caption>\n",
+        "<thead><tr><th># Site/Projects<br>visited</th><th># subjects</th></tr></thead>\n<tbody>\n", brows,
+        "\n<tr style=\"font-weight:bold;border-top:2px solid #888\"><td>Total</td><td>", sum(bt$Freq), "</td></tr>",
+        "\n</tbody></table>\n",
+        "<div style=\"display:inline-block;vertical-align:top;max-width:340px;font-size:0.85em;color:#555\">",
+        "How many <i>different</i> Site/Projects each traveling subject was scanned at. ",
+        "A row &ldquo;k&rdquo; = the number of subjects scanned at exactly <b>k</b> Site/Projects ",
+        "(all &ge;2, since a traveling subject by definition visits two or more). ",
+        "E.g. the row <b>2</b> counts subjects scanned at exactly two Site/Projects.</div>\n")
       # (per-site stats now live in the top Site overview table; connectivity matrix is in the Cohort overview block)
       stats_html <- paste0(head_html, breadth_html, "<br><br>\n")
     }, error=function(e) message("traveling matrix skipped: ", conditionMessage(e)))
@@ -658,6 +666,13 @@ travel_html <- ""
       if (exists("model_legend_html")) model_legend_html else "",
       img_html,
       stats_html,
+      # inter-site connectivity (shared traveling subjects) right after the matrix statistics, 2D then interactive 3D
+      if (exists("conn_img") && nzchar(conn_img)) paste0(
+        "<h3>Inter-site connectivity</h3>\n",
+        "<p style=\"font-size:0.9em;color:#555;margin:2px 0\">Cell (i,j) = traveling subjects scanned at <b>both</b> Site/Projects; diagonal (grey) = that site's total; colorbar = shared-subject count. Site labels are colored by scanner model.</p>\n",
+        "<div style=\"max-width:640px\">", conn_img, "</div><br>\n") else "",
+      if (exists("conn3d_html")) conn3d_html else "",
+      "<h3>Subjects</h3>\n",
       "<table border=\"1\" cellpadding=\"4\" style=\"border-collapse:collapse\">\n",
       "<thead><tr><th>Subject ID</th><th>#Site/Projects</th><th>Site/Project (Subject)</th></tr></thead>\n<tbody>\n",
       paste(trows, collapse="\n"), "\n</tbody></table><br>\n")

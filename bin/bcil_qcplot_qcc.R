@@ -364,9 +364,13 @@ p <- ggplot(dat, aes(x = X_idx, y = plot_y_line)) +
 # Points: skip MetricMissing rows (no dot on NA); color by Run if present
 pt_dat <- if (has_mm) dat[!miss1, , drop = FALSE] else dat
 if (has_run) {
-  dat$Run <- as.factor(dat$Run)
+  dat$Run <- as.factor(dat$Run); pt_dat$Run <- as.factor(pt_dat$Run)
   if (nrow(pt_dat) > 0L) {
-    p <- p + geom_point(data = pt_dat, aes(x = X_idx, y = plot_y_vis, color = Run), size = point_size)
+    # colorblind-safe (Okabe-Ito, blue-first, no green) palette for Run - TH
+    cvd_pal <- c("#0072B2","#E69F00","#D55E00","#56B4E9","#CC79A7","#F0E442","#000000","#999999")
+    p <- p + geom_point(data = pt_dat, aes(x = X_idx, y = plot_y_vis, color = Run), size = point_size) +
+      ggplot2::scale_colour_manual(values = rep(cvd_pal, length.out = max(nlevels(pt_dat$Run), 1L)),
+                                   na.value = "#999999")
   }
 } else {
   if (nrow(pt_dat) > 0L) {
