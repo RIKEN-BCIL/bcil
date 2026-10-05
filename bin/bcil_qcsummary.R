@@ -497,7 +497,7 @@ if (nzchar(gsf)) {
                  i <- idxs[k,"row"]; j <- idxs[k,"col"]
                  ids <- rownames(inc)[inc[,i] > 0 & inc[,j] > 0]          # subjects shared by both sites
                  sx <- sm[ids]; nM <- sum(sx=="M", na.rm=TRUE); nF <- sum(sx=="F", na.rm=TRUE)
-                 sprintf('{"value":[%d,%d,%d],"mf":"%d:%d","ids":"%s","itemStyle":{"color":"%s","opacity":0.82}}',
+                 sprintf('{"value":[%d,%d,%d],"mf":"M %d, F %d","ids":"%s","itemStyle":{"color":"%s","opacity":0.82}}',
                          j-1L, i-1L, co[i,j], nM, nF, ejs(paste(ids, collapse=", ")), mix_hex(scol[i], scol[j]))
                }, character(1)), collapse=",") else ""
       cats   <- paste(sprintf('"%s"', gsub('"','',ltxt)), collapse=",")
@@ -518,7 +518,7 @@ if (nzchar(gsf)) {
         "var cats=[", cats, "];var data=[", cells, "];var lcols=[", lcolstr, "];",
         "var lc=function(v,i){return lcols[i];};",
         "try{sec.style.display='block';var ch=echarts.init(el);ch.setOption({backgroundColor:'#ffffff',",
-        "tooltip:{formatter:function(p){var d=p.data||{};return cats[p.value[0]]+' × '+cats[p.value[1]]+'<br>shared: '+p.value[2]+(d.mf?' (M:F='+d.mf+')':'')+(d.ids?'<br>IDs: '+d.ids:'');}},",
+        "tooltip:{formatter:function(p){var d=p.data||{};return cats[p.value[0]]+' × '+cats[p.value[1]]+'<br>shared: '+p.value[2]+(d.mf?' ('+d.mf+')':'')+(d.ids?'<br>IDs: '+d.ids:'');}},",
         "xAxis3D:{type:'category',data:cats,axisLabel:{interval:0,rotate:40,fontSize:9,color:lc}},",
         "yAxis3D:{type:'category',data:cats,axisLabel:{interval:0,rotate:-40,fontSize:9,color:lc}},",
         "zAxis3D:{type:'value',name:'shared'},",
