@@ -281,11 +281,14 @@ if (length(model_cols)) {
     paste0("<tr><td style=\"color:", model_cols[m], ";font-weight:bold\">&#9632; ", m,
            "</td><td>", length(ss), "</td><td>", paste(ss, collapse=", "), "</td></tr>")
   }, character(1))
+  mtot_n <- sum(vapply(names(model_cols), function(m) sum(!is.na(site_model) & site_model==m), integer(1)))
+  mrow_total <- paste0("<tr style=\"font-weight:bold;border-top:2px solid #888;background:#f2f2f2\"><td>Total (",
+                       length(model_cols), " models)</td><td>", mtot_n, "</td><td></td></tr>")
   model_table_html <- paste0(
     "<h3>Scanner models</h3>\n",
     "<table border=\"1\" cellpadding=\"4\" style=\"border-collapse:collapse\">\n",
     "<thead><tr><th>Scanner model</th><th>#Site/Projects</th><th>Site/Projects</th></tr></thead>\n<tbody>\n",
-    paste(mrows, collapse="\n"), "\n</tbody></table><br>\n")
+    paste(mrows, collapse="\n"), "\n", mrow_total, "\n</tbody></table><br>\n")
 }
 
 # --- rotating 3D "cityscape" GIF of the connectivity matrix (base R persp + ImageMagick; offline-capable) ---
@@ -398,7 +401,7 @@ if (nzchar(gsf)) {
     sex_by <- vapply(uid, function(i){ v<-sxn[sidv==i & !is.na(sxn)]; if (length(v)) v[1] else NA_character_ }, character(1))
     av <- age_by[!is.na(age_by)]
     AgeStr <- if (length(av)) sprintf("%.0f [%d-%d]", mean(av), min(av), max(av)) else "NA"
-    SexStr <- sprintf("%d:%d", sum(sex_by=="M",na.rm=TRUE), sum(sex_by=="F",na.rm=TRUE))
+    SexStr <- sprintf("M %d, F %d", sum(sex_by=="M",na.rm=TRUE), sum(sex_by=="F",na.rm=TRUE))
     h <- hrow[hrow$Class == cl, , drop=FALSE]
     nHsubj <- length(unique(h$ID))
     nHsess <- nrow(h)                                              # distinct (ID, session) at this site
@@ -417,6 +420,17 @@ if (nzchar(gsf)) {
            "<td>", r[["N"]], "</td><td style=\"white-space:nowrap\">", r[["Age"]], "</td><td style=\"white-space:nowrap\">", r[["Sex"]], "</td>",
            "<td>", r[["HARPsubj"]], "</td><td>", r[["HARPsess"]], "</td><td>", r[["Repeat"]], "</td><td>", r[["Traveling"]], "</td></tr>")
   })
+  # totals row (bottom): Site/Projects count, total subjects, total M:F, total HARP subj/sess/repeat/traveling
+  .nums <- regmatches(as.character(st$Sex), gregexpr("[0-9]+", as.character(st$Sex)))
+  .sM <- sum(vapply(.nums, function(v) if (length(v)>=1) as.integer(v[1]) else 0L, integer(1)))
+  .sF <- sum(vapply(.nums, function(v) if (length(v)>=2) as.integer(v[2]) else 0L, integer(1)))
+  rowsh_total <- paste0(
+    "<tr style=\"font-weight:bold;border-top:2px solid #888;background:#f2f2f2\">",
+    "<td>Total (", nrow(st), " Site/Projects)</td>",
+    paste(rep("<td></td>", 8), collapse=""),
+    "<td>", sum(st$N), "</td><td></td>",
+    "<td style=\"white-space:nowrap\">M ", .sM, ", F ", .sF, "</td>",
+    "<td>", sum(st$HARPsubj), "</td><td>", sum(st$HARPsess), "</td><td>", sum(st$Repeat), "</td><td>", sum(st$Traveling), "</td></tr>")
   # --- cohort overview: demographics + inter-site connectivity, shown side by side ---
   demo_html <- ""
   tryCatch({
@@ -552,8 +566,8 @@ if (nzchar(gsf)) {
     "<table border=\"1\" cellpadding=\"4\" style=\"border-collapse:collapse\">\n",
     "<thead><tr><th>Site/Project</th><th>Label</th><th>Manufacturer</th><th>Model</th><th>Institution</th>",
     "<th>Description</th><th>Protocol</th><th>Gradient coil</th><th>Receive coil</th><th>#Subjects</th>",
-    "<th>Age</th><th>Sex (M:F)</th><th>#HARP subj</th><th>#HARP sess</th><th>#Repeat</th><th>#Traveling</th></tr></thead>\n<tbody>\n",
-    paste(rowsh, collapse="\n"), "\n</tbody></table><br>\n", model_table_html, demo_html)
+    "<th>Age</th><th>Sex (M, F)</th><th>#HARP subj</th><th>#HARP sess</th><th>#Repeat</th><th>#Traveling</th></tr></thead>\n<tbody>\n",
+    paste(rowsh, collapse="\n"), "\n", rowsh_total, "\n</tbody></table><br>\n", model_table_html, demo_html)
   utils::write.table(st, file.path(outdir, "site_overview.tsv"), sep="\t", row.names=FALSE, quote=FALSE)
   if (length(model_cols))
     utils::write.table(data.frame(Model=names(model_cols), Color=unname(model_cols),
