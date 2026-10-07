@@ -794,7 +794,8 @@ tryCatch({
       noise <- 1.4826*stats::median(abs(fit$resid)); subjsd <- 1.4826*stats::mad(fit$subj); sitesd <- 1.4826*stats::mad(fit$site)
       icc <- if ((subjsd^2+sitesd^2+noise^2)>0) subjsd^2/(subjsd^2+sitesd^2+noise^2) else NA_real_
       rows[[m]] <- c(list(BQM=m, n_subj=length(ts), n_sess=nrow(ag), meas_noise=round(noise,4),
-                          subj_spread=round(subjsd,4), site_spread=round(sitesd,4), ICC=round(icc,2)), as.list(round(fit$site[allsites],4)))
+                          subj_spread=round(subjsd,4), site_spread=round(sitesd,4), ICC=round(icc,2)),
+                     as.list(round(setNames(fit$site[allsites], allsites),4)))   # force names=allsites so rbind column names match across BQM
       if (is.finite(noise) && noise>0){ z<-fit$resid/noise; for (b in which(abs(z)>3)) anom[[length(anom)+1]] <-
         data.frame(SID=ag$SID[b],Site=ag$Site[b],BQM=m,value=round(ag$val[b],4),resid=round(fit$resid[b],4),resid_z=round(z[b],2),stringsAsFactors=FALSE) }
     }

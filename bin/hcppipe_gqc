@@ -222,8 +222,9 @@ AppendMode=0
 
 pointsize="--point-size 1.0"
 nonlabel=""
+DryRun=0
 
-while [[ "$1" = -o || "$1" = -n || "$1" = -p || "$1" = -a ]] ; do
+while [[ "$1" = -o || "$1" = -n || "$1" = -p || "$1" = -a || "$1" = -d || "$1" = --dry-run ]] ; do
 	if [ "$1" = -o ] ; then
 		OutputFolder="$2"
 		shift 2
@@ -235,6 +236,9 @@ while [[ "$1" = -o || "$1" = -n || "$1" = -p || "$1" = -a ]] ; do
 		shift 1
 	elif [ "$1" = -a ] ; then
 		AppendMode=1
+		shift 1
+	elif [ "$1" = -d ] || [ "$1" = --dry-run ] ; then
+		DryRun=1
 		shift 1
 	else
 		break
@@ -434,6 +438,30 @@ while [ $i -le $(echo $ProtocolsList | awk '{print NF}') ] ; do
 	done
 	i=$(expr $i + 1)
 done 
+
+# --- dry-run: check all protocol/subject folders and required QC files, then exit ---
+if [ "${DryRun:-0}" = 1 ] ; then
+	logMsg "DRY RUN: checking input folders and required QC files (no aggregation/plots)"
+	ntot=0; nok=0; nbad=0
+	while IFS=$'\t' read -r Protocol SubjID Subject ; do
+		[ "$Protocol" = Protocol ] && continue
+		[ -z "$Protocol" ] && continue
+		ntot=$(expr $ntot + 1)
+		sdir="$GroupStudyFolder/$Protocol/$Subject"
+		miss=""
+		[ -d "$sdir" ]                    || miss="$miss subjectdir"
+		[ -d "$sdir/QC" ]                 || miss="$miss QC/"
+		[ -e "$sdir/QC/qc_metrics.tsv" ]  || miss="$miss qc_metrics.tsv"
+		[ -e "$sdir/QC/report.html" ]     || miss="$miss report.html"
+		if [ -z "$miss" ] ; then nok=$(expr $nok + 1) ; else nbad=$(expr $nbad + 1) ; echo "  MISSING  $Protocol/$Subject :$miss" ; fi
+	done < "$OutputFolder/report/Protocol-Subjects-List.txt"
+	echo ""
+	echo "DRY RUN summary: $ntot subjects listed; OK=$nok; incomplete=$nbad"
+	echo "  protocols:$ProtocolsList"
+	echo "  output would be: $OutputFolder"
+	[ "$nbad" -eq 0 ] && echo "  all required QC inputs present -> safe to run" || echo "  >>> $nbad subject(s) missing required files (listed above)"
+	exit 0
+fi
 
 # Shared footer for Structure/Function/Diffusion QC plot pages (plot width toolbar script)
 _plotwidth_js='</div><script>(function(){var k="hcppipeGqcPlotDensity",L=["p2","p5","p10","p50"];function setLevel(d){if(L.indexOf(d)<0)d="p2";var imgs=document.getElementsByClassName("qcplot-img");for(var i=0;i<imgs.length;i++){var img=imgs[i],b=img.getAttribute("data-plot-base");if(b){img.src=b+"_"+d+".png";img.style.width="auto";img.style.height="auto";img.style.maxWidth="none";}}try{localStorage.setItem(k,d);}catch(e){}var a=document.getElementById("plotw-p2"),s=document.getElementById("plotw-p5"),m=document.getElementById("plotw-p10"),l=document.getElementById("plotw-p50");if(a&&s&&m&&l){a.style.fontWeight=d==="p2"?"bold":"normal";s.style.fontWeight=d==="p5"?"bold":"normal";m.style.fontWeight=d==="p10"?"bold":"normal";l.style.fontWeight=d==="p50"?"bold":"normal";}}var x=null;try{x=localStorage.getItem(k);}catch(e){}if(L.indexOf(x)<0)x="p2";setLevel(x);document.getElementById("plotw-p2").onclick=function(){setLevel("p2");};document.getElementById("plotw-p5").onclick=function(){setLevel("p5");};document.getElementById("plotw-p10").onclick=function(){setLevel("p10");};document.getElementById("plotw-p50").onclick=function(){setLevel("p50");};})();</script><BR><BR><BR><BR></BODY></HTML>'
