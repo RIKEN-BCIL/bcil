@@ -579,7 +579,7 @@ cat << EOF > $reporthtml
 EOF
 
 	#for variableset in WholeBrain@@-x FSL_mincost@@-x FS_mincost@@-x SDS5@SurfaceStats.csv@-c; do
-	for varset in brainmask_fs_MEAN@T1w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T2w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T1wmulT2w_stats.tsv@2@-x brainmask_fs_MEAN@T1wDividedByT2w_stats.tsv@2@-x FSL_BBR_mincost@T2wToT1w.mincost.tsv@2@-x FreeSurfer_BBR_mincost@T2wToT1w.mincost.tsv@2@-x T1wmulT2w_brain_norm_modulate_mask_ratio@T1wmulT2w_brain_norm_modulate_stats.tsv@2@-x Q2@BiasField_acpc_dc_stats.tsv@2@-x IQR@BiasField_acpc_dc_stats.tsv@2@-x IQR@Fieldmap_stats.tsv@2@-x Myelin_Biasfield_Q2@SurfaceStats.tsv@2@-x Myelin_Biasfield_IQR@SurfaceStats.tsv@2@-x Myelin_Biasfield_Asymmetry_Q2@SurfaceStats.tsv@2@-x Myelin_Biasfield_Asymmetry_IQR@SurfaceStats.tsv@2@-x MSMSulc_areal_distortion_IQR@SurfaceStats.tsv@2@-x MSMAll_areal_distortion_IQR@SurfaceStats.tsv@2@-x MyelinMap_similarity@SurfaceStats.tsv@2@-x MyelinMap_BC_similarity@SurfaceStats.tsv@2@-x thickness_similarity@SurfaceStats.tsv@2@-x SDS5@SurfaceStats.tsv@2@-c Q2@NonlinearRegJacobians_stats.tsv@2@-x IQR@NonlinearRegJacobians_stats.tsv@2@-x; do
+	for varset in brainmask_fs_MEAN@T1w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T2w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T1wmulT2w_stats.tsv@2@-x brainmask_fs_MEAN@T1wDividedByT2w_stats.tsv@2@-x FSL_BBR_mincost@T2wToT1w.mincost.tsv@2@-x FreeSurfer_BBR_mincost@T2wToT1w.mincost.tsv@2@-x T1wmulT2w_brain_norm_modulate_mask_ratio@T1wmulT2w_brain_norm_modulate_stats.tsv@2@-x Q2@BiasField_acpc_dc_stats.tsv@2@-x IQR@BiasField_acpc_dc_stats.tsv@2@-x IQR@Fieldmap_stats.tsv@2@-x Myelin_Biasfield_Q2@SurfaceStats.tsv@2@-x Myelin_Biasfield_IQR@SurfaceStats.tsv@2@-x Myelin_Biasfield_Asymmetry_Q2@SurfaceStats.tsv@2@-x Myelin_Biasfield_Asymmetry_IQR@SurfaceStats.tsv@2@-x MSMSulc_areal_distortion_IQR@SurfaceStats.tsv@2@-x MSMAll_areal_distortion_IQR@SurfaceStats.tsv@2@-x MyelinMap_similarity@SurfaceStats.tsv@2@-x MyelinMap_BC_similarity@SurfaceStats.tsv@2@-x thickness_similarity@SurfaceStats.tsv@2@-x SDS3@SurfaceStats.tsv@2@-c SDS5@SurfaceStats.tsv@2@-c Q2@NonlinearRegJacobians_stats.tsv@2@-x IQR@NonlinearRegJacobians_stats.tsv@2@-x; do
 
 		# Not used variable
 		# LEFT-CEREBRAL-CORTEX_MEAN@T1w_acpc_dc_stats.tsv@2@-x RIGHT-CEREBRAL-CORTEX_MEAN@T1w_acpc_dc_stats.tsv@2@-x LEFT-CEREBRAL-WHITE-MATTER_MEAN@T1w_acpc_dc_stats.tsv@2@-x RIGHT-CEREBRAL-WHITE-MATTER_MEAN@T1w_acpc_dc_stats.tsv@2@-x LEFT-LATERAL-VENTRICLE_MEAN@T1w_acpc_dc_stats.tsv@2@-x RIGHT-LATERAL-VENTRICLE_MEAN@T1w_acpc_dc_stats.tsv@2@-x LEFT-CEREBRAL-CORTEX_MEAN@T2w_acpc_dc_stats.tsv@2@-x RIGHT-CEREBRAL-CORTEX_MEAN@T2w_acpc_dc_stats.tsv@2@-x LEFT-CEREBRAL-WHITE-MATTER_MEAN@T2w_acpc_dc_stats.tsv@2@-x RIGHT-CEREBRAL-WHITE-MATTER_MEAN@T2w_acpc_dc_stats.tsv@2@-x LEFT-LATERAL-VENTRICLE_MEAN@T2w_acpc_dc_stats.tsv@2@-x RIGHT-LATERAL-VENTRICLE_MEAN@T2w_acpc_dc_stats.tsv@2@-x
@@ -610,7 +610,7 @@ EOF
 						if [[ -z "$val" ]]; then
 							structfile="$GroupStudyFolder/$Protocol/$Subject/QC/Structure/$file"
 							if [ -f "$structfile" ]; then
-								val=$(awk -F'\t' -v k="$varkey" '$1==k{print $2; exit}' "$structfile")
+								val=$(awk -F'\t' -v k="$varkey" '$1==k || $1 ~ "\\(" k "\\)$" {print $2; exit}' "$structfile")
 							fi
 						fi
 						if [[ -z "$val" ]]; then
