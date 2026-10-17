@@ -36,6 +36,17 @@ COPYRIGHT_YEAR="2006-2026"
 BCILDIR=$(cd $(dirname $0); cd ..; pwd)
 source $BCILDIR/bcilconf/settings.sh
 
+# External toolkits come from the environment, not from settings.sh, and this script
+# runs under `set -u`: an unset one aborts at its first use with only
+# "FSLDIR: unbound variable", far from the cause. Fail at startup and say what to do.
+: "${FSLDIR:?FSLDIR is not set. Source FSL first, e.g.
+    export FSLDIR=/usr/local/fsl
+    . \$FSLDIR/etc/fslconf/fsl.sh
+  (a non-interactive shell such as \"ssh host 'cmd'\" does not read .bashrc)}"
+[ -d "$FSLDIR" ] || { echo "ERROR: FSLDIR=$FSLDIR does not exist" >&2 ; exit 1 ; }
+: "${CARET7DIR:?CARET7DIR is not set (Connectome Workbench wb_command directory)}"
+[ -d "$CARET7DIR" ] || { echo "ERROR: CARET7DIR=$CARET7DIR does not exist" >&2 ; exit 1 ; }
+
 # Need to set the following variables in $BCILDIR/bcilconf/settings.sh:
 # CARET7DIR
 # HCPPIPEDIR
@@ -703,7 +714,7 @@ elif [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/n
 		cp $FSLDIR/etc/luts/ramp*.gif ${reportdir}/
 		echo "-0.8<img src=\"./report/ramp2.gif\"><img src=\"./report/ramp.gif\">1.2 <BR>" >> $reporthtml
 		echo -e "T1wMulT2w Biasfield in brain area\t" > $OutputFolder/Structure/BiasField_acpc_dc_stats.tsv
-		${FSLDIR}/bin/fslstats $StudyFolder/$Subject/T1w/BiasField_acpc_dc.nii.gz -k $StudyFolder/$Subject/T1w/T1w_acpc_dc_brain -p 0 -p 25 -p 50 -p 75 -p 100 | awk '{printf "Min\t%1.2f\nQ2\t%1.2f\nQ3\t%1.2f\nQ4\t%1.2f\nMax\t%1.2f\nIQR\t%1.2f\n",$1,$2,$3,$4,$5,$4-$2}' >> $OutputFolder/Structure/BiasField_acpc_dc_stats.tsv
+		${FSLDIR}/bin/fslstats $StudyFolder/$Subject/T1w/BiasField_acpc_dc.nii.gz -k $StudyFolder/$Subject/T1w/T1w_acpc_dc_brain -p 0 -p 25 -p 50 -p 75 -p 100 | awk '{printf "Min\t%1.2f\nQ1\t%1.2f\nQ2\t%1.2f\nQ3\t%1.2f\nMax\t%1.2f\nIQR\t%1.2f\n",$1,$2,$3,$4,$5,$4-$2}' >> $OutputFolder/Structure/BiasField_acpc_dc_stats.tsv
 		cat $OutputFolder/Structure/BiasField_acpc_dc_stats.tsv | tsv2html >> $reporthtml
 	fi
 
@@ -944,9 +955,29 @@ elif [[ $Struc = ON && ! $(ls $StudyFolder/$Subject/MNINonLinear/*spec 2> /dev/n
 	fi
 
 	# robust z-score for Myelin_BC
+	#
+	# The subject's map is first put on the reference's overall level. This is required
+	# for compatibility with HCP pipelines from the version that introduced
+	# global/scripts/MyelinMap_BC.sh: its --use-ind-mean defaults to YES, which rescales
+	# the reference to the individual's mean before subtracting, so the resulting
+	# MyelinMap_BC keeps the INDIVIDUAL's level instead of moving to the reference level.
+	# Older versions (<= 4.3.0) subtract the reference as given and so land on the
+	# reference level. S1200.MyelinMap_BC_*_Q1-2-3 carries the old convention's absolute
+	# level (~1.30) and the reference robust SD is only ~0.060, so an uncorrected level
+	# difference becomes a z of 8-17 and |z|>3 holds over 99-100% of the cortex. The
+	# "AND" in the surface defect score then degenerates and SDS becomes the
+	# thickness-only count. Measured on two such datasets: SDS3 9603 -> 185 and
+	# 8558 -> 907 after this rescaling, while old-convention data is unchanged
+	# (330 -> 330), because there median(sub) already equals median(Q2).
+	# The same rescaling also absorbs a vendor-specific T1w/T2w intensity scale.
 	if [ -e $StudyFolder/$Subject/MNINonLinear/${Subject}.MyelinMap_BC${Reg}.164k_fs_LR.dscalar.nii ] ; then
 		Myelin=$StudyFolder/$Subject/MNINonLinear/${Subject}.MyelinMap_BC${Reg}.164k_fs_LR.dscalar.nii
-		${CARET7DIR}/wb_command -cifti-math '(sub-Q2)/((Q3-Q1)*0.7413)' $OutputFolder/Structure/${Subject}.MyelinMap_BC_z-score.164k_fs_LR.dscalar.nii -var sub $Myelin -var Q1 $MyelinQ1to3 -select 1 1  -var Q2 $MyelinQ1to3 -select 1 2 -var Q3 $MyelinQ1to3 -select 1 3
+		MyelinMedSub=$(${CARET7DIR}/wb_command -cifti-stats $Myelin -reduce MEDIAN)
+		MyelinMedRef=$(${CARET7DIR}/wb_command -cifti-stats $MyelinQ1to3 -reduce MEDIAN -column 2)
+		MyelinScale=$(awk -v a="$MyelinMedRef" -v b="$MyelinMedSub" 'BEGIN{ if (b+0>0 && a+0>0) printf "%.8f", a/b; else print "1" }')
+		echo -e "MyelinMap_BC_level_scale\t${MyelinScale}" >> $OutputFolder/Structure/SurfaceStats.tsv
+		logMsg "MyelinMap_BC level: subject median ${MyelinMedSub}, reference median ${MyelinMedRef}, scale ${MyelinScale}"
+		${CARET7DIR}/wb_command -cifti-math "(sub*${MyelinScale}-Q2)/((Q3-Q1)*0.7413)" $OutputFolder/Structure/${Subject}.MyelinMap_BC_z-score.164k_fs_LR.dscalar.nii -var sub $Myelin -var Q1 $MyelinQ1to3 -select 1 1  -var Q2 $MyelinQ1to3 -select 1 2 -var Q3 $MyelinQ1to3 -select 1 3
 	fi
 	# robust z-score for thickness
 	Thickness=$StudyFolder/$Subject/MNINonLinear/${Subject}.thickness${Reg}.164k_fs_LR.dscalar.nii
@@ -2277,7 +2308,7 @@ WriteMetrics () {
 	out_json="${OutputFolder}/qc_metrics.json"
 
 	# Metric definitions (kept consistent with hcppipe_gqc varname rules)
-	struct_varsets="brainmask_fs_MEAN@T1w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T2w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T1wmulT2w_stats.tsv@2@-x brainmask_fs_MEAN@T1wDividedByT2w_stats.tsv@2@-x FSL_BBR_mincost@T2wToT1w.mincost.tsv@2@-x FreeSurfer_BBR_mincost@T2wToT1w.mincost.tsv@2@-x T1wmulT2w_brain_norm_modulate_mask_ratio@T1wmulT2w_brain_norm_modulate_stats.tsv@2@-x Q2@BiasField_acpc_dc_stats.tsv@2@-x IQR@BiasField_acpc_dc_stats.tsv@2@-x IQR@Fieldmap_stats.tsv@2@-x Myelin_Biasfield_Q2@SurfaceStats.tsv@2@-x Myelin_Biasfield_IQR@SurfaceStats.tsv@2@-x Myelin_Biasfield_Asymmetry_Q2@SurfaceStats.tsv@2@-x Myelin_Biasfield_Asymmetry_IQR@SurfaceStats.tsv@2@-x MSMSulc_areal_distortion_IQR@SurfaceStats.tsv@2@-x MSMAll_areal_distortion_IQR@SurfaceStats.tsv@2@-x MyelinMap_similarity@SurfaceStats.tsv@2@-x MyelinMap_BC_similarity@SurfaceStats.tsv@2@-x thickness_similarity@SurfaceStats.tsv@2@-x SDS5@SurfaceStats.tsv@2@-c Q2@NonlinearRegJacobians_stats.tsv@2@-x IQR@NonlinearRegJacobians_stats.tsv@2@-x"
+	struct_varsets="brainmask_fs_MEAN@T1w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T2w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T1wmulT2w_stats.tsv@2@-x brainmask_fs_MEAN@T1wDividedByT2w_stats.tsv@2@-x FSL_BBR_mincost@T2wToT1w.mincost.tsv@2@-x FreeSurfer_BBR_mincost@T2wToT1w.mincost.tsv@2@-x T1wmulT2w_brain_norm_modulate_mask_ratio@T1wmulT2w_brain_norm_modulate_stats.tsv@2@-x Q2@BiasField_acpc_dc_stats.tsv@2@-x IQR@BiasField_acpc_dc_stats.tsv@2@-x IQR@Fieldmap_stats.tsv@2@-x Min@BiasField_acpc_dc_stats.tsv@2@-x Q3@BiasField_acpc_dc_stats.tsv@2@-x Max@BiasField_acpc_dc_stats.tsv@2@-x Q2@Fieldmap_stats.tsv@2@-x Max@Fieldmap_stats.tsv@2@-x Gradient@Fieldmap_stats.tsv@2@-x PhaseDiffAbs@Fieldmap_stats.tsv@2@-x Myelin_Biasfield_Q1@SurfaceStats.tsv@2@-x Myelin_Biasfield_Q2@SurfaceStats.tsv@2@-x Myelin_Biasfield_IQR@SurfaceStats.tsv@2@-x Myelin_Biasfield_Asymmetry_Q2@SurfaceStats.tsv@2@-x Myelin_Biasfield_Asymmetry_IQR@SurfaceStats.tsv@2@-x MSMSulc_areal_distortion_IQR@SurfaceStats.tsv@2@-x MSMAll_areal_distortion_IQR@SurfaceStats.tsv@2@-x MyelinMap_similarity@SurfaceStats.tsv@2@-x MyelinMap_BC_similarity@SurfaceStats.tsv@2@-x thickness_similarity@SurfaceStats.tsv@2@-x SDS3@SurfaceStats.tsv@2@-c SDS5@SurfaceStats.tsv@2@-c Q2@NonlinearRegJacobians_stats.tsv@2@-x IQR@NonlinearRegJacobians_stats.tsv@2@-x"
 	func_varsets="Movement_AbsoluteRMS_mean@Movement_AbsoluteRMS_mean.txt@1@1@-x Movement_RelativeRMS_mean@Movement_RelativeRMS_mean.txt@1@1@-x Q2@Movement_Regressors_FD_stats.txt@2@3@-x PercOutlier@ICA-FIX_stats.tsv@2@3@-x Dvar-SvarDivergence@ICA-FIX_stats.tsv@3@3@-x AutocorrCoeffMedian@ICA-FIX_stats.tsv@4@3@-x FSL_BBR@EPI2T1w.mincost.tsv@2@1@-x FreeSurfer_BBR@EPI2T1w.mincost.tsv@2@2@-x IQR@Fieldmap_stats.tsv@2@7@-x NumSignal@RestingStateStats.tsv@2@2@-c NumNoise@RestingStateStats.tsv@2@3@-c NumTotal@RestingStateStats.tsv@2@4@-c CNR@RestingStateStats.tsv@2@16@-x HighPassVarRatio@RestingStateStats.tsv@2@25@-x MotionVar@RestingStateStats.tsv@2@11@-x StructNoiseVar@RestingStateStats.tsv@2@12@-x BOLDVar@RestingStateStats.tsv@2@13@-x UnstructNoiseVar@RestingStateStats.tsv@2@14@-x TSNR@RestingStateStats.tsv@2@8@-x MotionVarRatio@RestingStateStats.tsv@2@26@-x StructNoiseVarRatio@RestingStateStats.tsv@2@27@-x BOLDVarRatio@RestingStateStats.tsv@2@28@-x UnstructNoiseVarRatio@RestingStateStats.tsv@2@29@-x"
 	diff_varsets="SNR@DiffusionQC.tsv@2@-x CNR@DiffusionQC.tsv@2@-x abs.@DiffusionQC.tsv@2@-x@abs_motion rel.@DiffusionQC.tsv@2@-x@rel_motion outliers@DiffusionQC.tsv@2@-x displacement@DiffusionQC.tsv@2@-x IQR@Fieldmap_stats.tsv@2@-x Fiber_1_ratio@TractographyQC.tsv@2@-x Fiber_2_ratio@TractographyQC.tsv@2@-x Fiber_3_ratio@TractographyQC.tsv@2@-x Fiber_1_uncertainty@TractographyQC.tsv@2@-x Fiber_2_uncertainty@TractographyQC.tsv@2@-x Fiber_3_uncertainty@TractographyQC.tsv@2@-x FSL_BBR_mincost@nodif2T1w.mincost.tsv@2@-x FreeSurfer_BBR_mincost@nodif2T1w.mincost.tsv@2@-x"
 
