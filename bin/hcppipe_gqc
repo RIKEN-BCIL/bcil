@@ -14,6 +14,15 @@ VERSION=1.1
 BCILDIR=$(cd $(dirname $0); cd ..; pwd)
 source $BCILDIR/bcilconf/settings.sh
 
+# External toolkits come from the environment, not from settings.sh, and this script
+# runs under `set -u`: an unset one aborts at its first use with only
+# "FSLDIR: unbound variable", far from the cause. Fail at startup and say what to do.
+: "${FSLDIR:?FSLDIR is not set. Source FSL first, e.g.
+    export FSLDIR=/usr/local/fsl
+    . \$FSLDIR/etc/fslconf/fsl.sh
+  (a non-interactive shell such as \"ssh host 'cmd'\" does not read .bashrc)}"
+[ -d "$FSLDIR" ] || { echo "ERROR: FSLDIR=$FSLDIR does not exist" >&2 ; exit 1 ; }
+
 # Usage
 Usage () {
 echo ""
@@ -579,7 +588,29 @@ cat << EOF > $reporthtml
 EOF
 
 	#for variableset in WholeBrain@@-x FSL_mincost@@-x FS_mincost@@-x SDS5@SurfaceStats.csv@-c; do
-	for varset in brainmask_fs_MEAN@T1w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T2w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T1wmulT2w_stats.tsv@2@-x brainmask_fs_MEAN@T1wDividedByT2w_stats.tsv@2@-x FSL_BBR_mincost@T2wToT1w.mincost.tsv@2@-x FreeSurfer_BBR_mincost@T2wToT1w.mincost.tsv@2@-x T1wmulT2w_brain_norm_modulate_mask_ratio@T1wmulT2w_brain_norm_modulate_stats.tsv@2@-x Q2@BiasField_acpc_dc_stats.tsv@2@-x IQR@BiasField_acpc_dc_stats.tsv@2@-x IQR@Fieldmap_stats.tsv@2@-x Myelin_Biasfield_Q2@SurfaceStats.tsv@2@-x Myelin_Biasfield_IQR@SurfaceStats.tsv@2@-x Myelin_Biasfield_Asymmetry_Q2@SurfaceStats.tsv@2@-x Myelin_Biasfield_Asymmetry_IQR@SurfaceStats.tsv@2@-x MSMSulc_areal_distortion_IQR@SurfaceStats.tsv@2@-x MSMAll_areal_distortion_IQR@SurfaceStats.tsv@2@-x MyelinMap_similarity@SurfaceStats.tsv@2@-x MyelinMap_BC_similarity@SurfaceStats.tsv@2@-x thickness_similarity@SurfaceStats.tsv@2@-x SDS3@SurfaceStats.tsv@2@-c SDS5@SurfaceStats.tsv@2@-c Q2@NonlinearRegJacobians_stats.tsv@2@-x IQR@NonlinearRegJacobians_stats.tsv@2@-x; do
+	# Read one value out of a key<TAB>value stats file.
+	#  * legacy quartile labels: a file carrying Q4 but no Q1 is the old
+	#    BiasField_acpc_dc_stats.tsv convention (Min Q2 Q3 Q4 Max), where every
+	#    quartile sits one name too high -- shift the requested key to match.
+	#  * key matching goes exact -> "(KEY)" suffix (SDS3) -> "_KEY" suffix
+	#    (MSMSulc_Myelin_Biasfield_Q2) -> prefix (Gradient -> "Gradient (mean)")
+	#    -> substring, each tried across the whole file before the next, so a
+	#    loose match can never win over an exact one.
+	_tsv_val () {
+		awk -F'\t' -v k="$2" '
+			{ key[NR]=$1; v[NR]=$2; if ($1=="Q4") legacy=1; if ($1=="Q1") hasq1=1 }
+			END{
+				kk=k
+				if (legacy && !hasq1 && kk ~ /^Q[123]$/) kk="Q" (substr(kk,2)+1)
+				for(i=1;i<=NR;i++) if (key[i]==kk)                  {print v[i]; exit}
+				for(i=1;i<=NR;i++) if (key[i] ~ "\\(" kk "\\)$")    {print v[i]; exit}
+				for(i=1;i<=NR;i++) if (key[i] ~ ("(^|_)" kk "$"))   {print v[i]; exit}
+				for(i=1;i<=NR;i++) if (index(key[i],kk)==1)         {print v[i]; exit}
+				for(i=1;i<=NR;i++) if (index(key[i],kk)>0)          {print v[i]; exit}
+			}' "$1"
+	}
+
+	for varset in brainmask_fs_MEAN@T1w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T2w_acpc_dc_stats.tsv@2@-x brainmask_fs_MEAN@T1wmulT2w_stats.tsv@2@-x brainmask_fs_MEAN@T1wDividedByT2w_stats.tsv@2@-x FSL_BBR_mincost@T2wToT1w.mincost.tsv@2@-x FreeSurfer_BBR_mincost@T2wToT1w.mincost.tsv@2@-x T1wmulT2w_brain_norm_modulate_mask_ratio@T1wmulT2w_brain_norm_modulate_stats.tsv@2@-x Q2@BiasField_acpc_dc_stats.tsv@2@-x IQR@BiasField_acpc_dc_stats.tsv@2@-x IQR@Fieldmap_stats.tsv@2@-x Min@BiasField_acpc_dc_stats.tsv@2@-x Q3@BiasField_acpc_dc_stats.tsv@2@-x Max@BiasField_acpc_dc_stats.tsv@2@-x Q2@Fieldmap_stats.tsv@2@-x Max@Fieldmap_stats.tsv@2@-x Gradient@Fieldmap_stats.tsv@2@-x PhaseDiffAbs@Fieldmap_stats.tsv@2@-x Myelin_Biasfield_Q1@SurfaceStats.tsv@2@-x Myelin_Biasfield_Q2@SurfaceStats.tsv@2@-x Myelin_Biasfield_IQR@SurfaceStats.tsv@2@-x Myelin_Biasfield_Asymmetry_Q2@SurfaceStats.tsv@2@-x Myelin_Biasfield_Asymmetry_IQR@SurfaceStats.tsv@2@-x MSMSulc_areal_distortion_IQR@SurfaceStats.tsv@2@-x MSMAll_areal_distortion_IQR@SurfaceStats.tsv@2@-x MyelinMap_similarity@SurfaceStats.tsv@2@-x MyelinMap_BC_similarity@SurfaceStats.tsv@2@-x thickness_similarity@SurfaceStats.tsv@2@-x SDS3@SurfaceStats.tsv@2@-c SDS5@SurfaceStats.tsv@2@-c Q2@NonlinearRegJacobians_stats.tsv@2@-x IQR@NonlinearRegJacobians_stats.tsv@2@-x; do
 
 		# Not used variable
 		# LEFT-CEREBRAL-CORTEX_MEAN@T1w_acpc_dc_stats.tsv@2@-x RIGHT-CEREBRAL-CORTEX_MEAN@T1w_acpc_dc_stats.tsv@2@-x LEFT-CEREBRAL-WHITE-MATTER_MEAN@T1w_acpc_dc_stats.tsv@2@-x RIGHT-CEREBRAL-WHITE-MATTER_MEAN@T1w_acpc_dc_stats.tsv@2@-x LEFT-LATERAL-VENTRICLE_MEAN@T1w_acpc_dc_stats.tsv@2@-x RIGHT-LATERAL-VENTRICLE_MEAN@T1w_acpc_dc_stats.tsv@2@-x LEFT-CEREBRAL-CORTEX_MEAN@T2w_acpc_dc_stats.tsv@2@-x RIGHT-CEREBRAL-CORTEX_MEAN@T2w_acpc_dc_stats.tsv@2@-x LEFT-CEREBRAL-WHITE-MATTER_MEAN@T2w_acpc_dc_stats.tsv@2@-x RIGHT-CEREBRAL-WHITE-MATTER_MEAN@T2w_acpc_dc_stats.tsv@2@-x LEFT-LATERAL-VENTRICLE_MEAN@T2w_acpc_dc_stats.tsv@2@-x RIGHT-LATERAL-VENTRICLE_MEAN@T2w_acpc_dc_stats.tsv@2@-x
@@ -604,14 +635,23 @@ EOF
 						val=""
 						metric_missing=0
 						qcfile="$GroupStudyFolder/$Protocol/$Subject/QC/qc_metrics.tsv"
-						if [ -e "$qcfile" ] ; then
+						structfile="$GroupStudyFolder/$Protocol/$Subject/QC/Structure/$file"
+						# BiasField_acpc_dc_stats.tsv used to label its quartiles Q2/Q3/Q4 where
+						# every other stats file in the pipeline writes Q1/Q2/Q3 (hcppipe_qc wrote
+						# p25/p50/p75 one name too high). The numbers were always right; only the
+						# labels were off. The cached qc_metrics.tsv carries no record of which
+						# convention produced it, so for these keys read the raw file first -- it
+						# still shows its convention, and _tsv_val shifts the key when it is the
+						# old one. Without this a cohort processed either side of the fix would
+						# silently mix p25 and the median in one column.
+						if [[ "$file" == "BiasField_acpc_dc_stats.tsv" && "$varkey" =~ ^Q[0-9]$ && -f "$structfile" ]]; then
+							val=$(_tsv_val "$structfile" "$varkey")
+						fi
+						if [[ -z "$val" && -e "$qcfile" ]]; then
 							val=$(getMetricFromQcTsv "$qcfile" "Structure" "Structure" "$varname")
 						fi
-						if [[ -z "$val" ]]; then
-							structfile="$GroupStudyFolder/$Protocol/$Subject/QC/Structure/$file"
-							if [ -f "$structfile" ]; then
-								val=$(awk -F'\t' -v k="$varkey" '$1==k || $1 ~ "\\(" k "\\)$" {print $2; exit}' "$structfile")
-							fi
+						if [[ -z "$val" && -f "$structfile" ]]; then
+							val=$(_tsv_val "$structfile" "$varkey")
 						fi
 						if [[ -z "$val" ]]; then
 							val="NA"
