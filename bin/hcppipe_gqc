@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-VERSION=1.1
+VERSION=1.2
 
 # Requirements:
 # R>=4.4.0 (r-base-core, MASS, qcc, gggplot2)

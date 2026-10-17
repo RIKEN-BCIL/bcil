@@ -30,7 +30,7 @@
 
 set -euo pipefail
 
-VERSION="1.1"
+VERSION="1.2"
 COPYRIGHT_YEAR="2006-2026"
 
 BCILDIR=$(cd $(dirname $0); cd ..; pwd)
