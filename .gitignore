@@ -4,3 +4,4 @@ bin/compiled/mccExcludedFiles.log
 bin/compiled/unresolvedSymbols.txt
 bin/compiled/includedSupportPackages.txt
 bin/compiled/requiredMCRProducts.txt
+*.bak-*

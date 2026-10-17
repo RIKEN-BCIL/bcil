@@ -798,17 +798,167 @@ tryCatch({
         ne <- tapply(val-grand-su[sid], site, stats::median); ne <- ne - stats::median(ne)
         if (it>1 && max(abs(ne[names(se)]-se[names(se)]),na.rm=TRUE) < 1e-9){ se<-ne; break }; se<-ne }
       list(grand=grand, subj=su, site=se, resid=val-grand-su[sid]-se[site]) }
+    # ---- effective n per site -------------------------------------------------
+    # The subject x site table is far from complete, so a site's effective number of
+    # travellers is NOT its raw count: eliminating the subject effects costs
+    # information. The exact cost is the Schur complement of the design,
+    #   C = D_site - B D_subj^-1 B',   n_eff_j = 1 / (C^+)_jj .
+    # A connected subject-site graph is required -- which is also the condition for
+    # the site effects to be identifiable at all.
+    neff_of <- function(sid, site){
+      us <- sort(unique(sid)); ut <- sort(unique(site))
+      if (length(ut) < 2 || length(us) < 2) return(NA_real_)
+      B <- matrix(0, length(ut), length(us), dimnames=list(ut, us))
+      for (k in seq_along(sid)) B[site[k], sid[k]] <- B[site[k], sid[k]] + 1
+      cs <- colSums(B); if (any(cs <= 0)) return(NA_real_)
+      Cm <- diag(rowSums(B), nrow=length(ut)) - B %*% diag(1/cs, nrow=length(us)) %*% t(B)
+      sv <- svd(Cm); tol <- max(dim(Cm)) * .Machine$double.eps * max(sv$d)
+      keep <- sv$d > tol; if (!any(keep)) return(NA_real_)
+      Cp <- sv$v[,keep,drop=FALSE] %*% diag(1/sv$d[keep], nrow=sum(keep)) %*% t(sv$u[,keep,drop=FALSE])
+      d <- diag(Cp); d <- d[d > 0]
+      if (!length(d)) return(NA_real_)
+      stats::median(1/d)
+    }
+    # ---- optional empirical split-half reproducibility of the site effects ------
+    # Design-agnostic, so it catches what the model-based coefficients miss, but it
+    # costs ~8 s per BQM (measured, 30 reps x 60 BQM = 508 s). Off unless asked for:
+    #   BCIL_QC_SPLITHALF=1   -> on with 10 reps      BCIL_QC_SPLITHALF=<n> -> n reps
+    nrep_sh <- suppressWarnings(as.integer(Sys.getenv("BCIL_QC_SPLITHALF", "0")))
+    if (is.na(nrep_sh) || nrep_sh < 0) nrep_sh <- 0L
+    if (nrep_sh == 1L) nrep_sh <- 10L
+    splithalf <- function(sid, site, val, nrep){
+      tr <- unique(sid); if (nrep < 1 || length(tr) < 8) return(NA_real_)
+      rs <- numeric(0)
+      for (k in seq_len(nrep)){
+        A <- sample(tr, floor(length(tr)/2)); mA <- sid %in% A
+        if (sum(mA) < 6 || sum(!mA) < 6) next
+        fa <- try(mpolish(sid[mA],  site[mA],  val[mA]),  silent=TRUE)
+        fb <- try(mpolish(sid[!mA], site[!mA], val[!mA]), silent=TRUE)
+        if (inherits(fa,"try-error") || inherits(fb,"try-error")) next
+        cm <- intersect(names(fa$site), names(fb$site))
+        # A random half leaves the smallest sites with 1-2 travellers (measured: ~2 of
+        # 16 per split). Their effect is not estimable in that half, and including them
+        # only adds noise, biasing the reproducibility downwards -- so require >= 3
+        # travellers on BOTH sides. The site graph itself never disconnects under a
+        # random half of this design (0 of 400 splits), so no further guard is needed.
+        cm <- cm[vapply(cm, function(tt) sum(site[mA]==tt) >= 3 && sum(site[!mA]==tt) >= 3, logical(1))]
+        if (length(cm) < 4) next
+        a <- fa$site[cm]; b <- fb$site[cm]
+        if (stats::sd(a) > 0 && stats::sd(b) > 0) rs <- c(rs, stats::cor(a, b))
+      }
+      if (!length(rs)) return(NA_real_)
+      r <- stats::median(rs)
+      if (r <= 0) return(r)
+      2*r/(1+r)                       # Spearman-Brown back to the full traveller set
+    }
+    if (nrep_sh > 0) set.seed(20251017)
+    # ---- largest single-model site group ---------------------------------------
+    # G_crossed over all sites answers "does this BQM separate these devices", but a
+    # cohort of mixed models answers it largely with the model/vendor difference. The
+    # stringent question -- can the BQM tell two devices of the SAME model apart -- is
+    # answered by recomputing it inside the largest single-model group. On this cohort
+    # (5 Prisma of 16 sites) the median G_crossed falls 0.94 -> 0.65 and the SCANNER
+    # count 48 -> 15, so the distinction is not cosmetic: two thirds of the metrics
+    # that look device-discriminating across mixed models are only model-discriminating.
+    mdl_tab <- table(site_model[!is.na(site_model)])
+    big_mdl <- if (length(mdl_tab)) names(mdl_tab)[which.max(mdl_tab)] else NA_character_
+    big_sites <- if (!is.na(big_mdl)) names(site_model)[!is.na(site_model) & site_model==big_mdl] else character(0)
+    if (length(big_sites) < 3) { big_mdl <- NA_character_; big_sites <- character(0) }
     rows <- list(); anom <- list()
     for (m in BQMc){
       x <- wide[[m]]; ok <- is.finite(x) & !is.na(SID); if (sum(ok) < 10) next
       ag <- aggregate(x[ok], by=list(SID=SID[ok], Site=cls[ok]), FUN=stats::median); names(ag)[3] <- "val"
       ts <- names(which(tapply(ag$Site, ag$SID, function(s) length(unique(s))) >= 2)); ag <- ag[ag$SID %in% ts,]
       if (nrow(ag) < 10 || length(unique(ag$Site)) < 2) next
+      # sigma_e estimated DIRECTLY from repeated sessions of the same subject at the
+      # same site, not from the polish residual. The residual is measured on cell
+      # medians and is shrunk by the fitting, so it understates the error a site
+      # estimate actually faces (measured here: x2.19, larger in 65 of 66 BQM). A
+      # scanner is judged from sessions acquired weeks or months apart, so the
+      # session-to-session difference is the right error term.
+      #   for two sessions of one cell, var(d) = 2 * sigma_e^2
+      se_rep <- NA_real_; n_rep <- 0L
+      {
+        sv <- stats::aggregate(x[ok], by=list(SID=SID[ok], Site=cls[ok],
+                                              Ses=wide$SubjectFolder[ok]), FUN=stats::median)
+        names(sv)[4] <- "val"
+        key <- paste(sv$SID, sv$Site, sep="\r")
+        dd <- unlist(lapply(split(sv$val, key), function(v){
+          if (length(v) < 2) return(numeric(0))
+          as.vector(stats::dist(v))  * sign(1)      # |differences|, all pairs
+        }), use.names=FALSE)
+        n_rep <- sum(vapply(split(sv$val, key), length, integer(1)) >= 2)
+        if (n_rep >= 20 && length(dd) >= 20)
+          se_rep <- 1.4826 * stats::median(abs(dd)) / sqrt(2)
+      }
       fit <- mpolish(ag$SID, ag$Site, ag$val)
-      noise <- 1.4826*stats::median(abs(fit$resid)); subjsd <- 1.4826*stats::mad(fit$subj); sitesd <- 1.4826*stats::mad(fit$site)
-      icc <- if ((subjsd^2+sitesd^2+noise^2)>0) subjsd^2/(subjsd^2+sitesd^2+noise^2) else NA_real_
+      # Spread of the polish effect vectors. The robustness that matters is against a
+      # bad SESSION, and the polish already supplies it: it fits on subject x site cell
+      # medians and estimates every effect by a median. Applying mad() to the resulting
+      # ~16-element site vector then discards the most deviant SCANNERS -- which, for a
+      # coefficient whose purpose is to judge scanners, throws away the signal. Measured
+      # on this cohort: the site mad() was below the site sd() in 59 of 68 BQM (median
+      # ratio 1.58, max 52), it was exactly 0 in 4 BQM (G_crossed undefined), and it
+      # moved 25 of 68 verdicts. sd() is therefore primary; the mad() values are kept as
+      # a sensitivity column. stats::mad() already carries the 1.4826 constant.
+      noise    <- 1.4826*stats::median(abs(fit$resid))
+      subjsd   <- stats::sd(fit$subj);    sitesd   <- stats::sd(fit$site)
+      subjsd_r <- stats::mad(fit$subj);   sitesd_r <- stats::mad(fit$site)
+      # Concentration of the site effect: share of the site sum-of-squares carried by
+      # the two most deviant sites. Even spread over k sites gives 2/k (0.125 at k=16).
+      # A BQM at >= 0.6 DETECTS outlying devices; it does not RANK devices, and its
+      # G_crossed must be read that way. On this cohort the median is 0.59 and only
+      # 1 of 68 BQM is below 0.3, because the site variance is dominated by the three
+      # GE scanners (KeioU, ChibaU, UTH2) against thirteen Siemens.
+      sv_  <- fit$site[is.finite(fit$site)]; d2_ <- (sv_-mean(sv_))^2
+      conc <- if (length(d2_) >= 4 && sum(d2_) > 0) sum(sort(d2_, decreasing=TRUE)[1:2])/sum(d2_) else NA_real_
+      # all four coefficients use the same sigma_e, so they stay mutually consistent;
+      # the polish residual is kept in the table as meas_noise for reference
+      ve_src <- if (is.finite(se_rep)) "repeat" else "polish"
+      ve <- if (is.finite(se_rep)) se_rep^2 else noise^2
+      vs <- subjsd^2; vt <- sitesd^2; tot <- vs+vt+ve
+      icc  <- if (tot>0) vs/tot else NA_real_      # reliability for ranking INDIVIDUALS
+      iccT <- if (tot>0) vt/tot else NA_real_      # site share = the harmonisation payoff
+      vs_r <- subjsd_r^2; vt_r <- sitesd_r^2; tot_r <- vs_r+vt_r+ve
+      icc_r <- if (tot_r>0) vs_r/tot_r else NA_real_
+      ne   <- neff_of(ag$SID, ag$Site)
+      # Reliability for ranking SITES. ICC_site is this same coefficient at n = 1 with
+      # no travellers; G_nested is its Spearman-Brown average-measure form; G_crossed
+      # additionally drops the subject variance, which only a crossed (traveling-
+      # subject) design permits. Use G_nested for ordinary multi-site cohorts.
+      gN <- if (is.finite(ne) && (vt+(vs+ve)/ne) > 0) vt/(vt+(vs+ve)/ne) else NA_real_
+      gC <- if (is.finite(ne) && (vt+ve/ne)      > 0) vt/(vt+ve/ne)      else NA_real_
+      gC_r <- if (is.finite(ne) && (vt_r+ve/ne)  > 0) vt_r/(vt_r+ve/ne)  else NA_real_
+      # same coefficient inside the largest single-model group, using that subset's own
+      # sigma_e and n_eff. NA when the subset has too few travelling subjects to fit.
+      gC1 <- NA_real_
+      if (length(big_sites) >= 3){
+        o1 <- ok & (cls %in% big_sites)
+        if (sum(o1) >= 10){
+          a1 <- aggregate(x[o1], by=list(SID=SID[o1], Site=cls[o1]), FUN=stats::median); names(a1)[3] <- "val"
+          t1 <- names(which(tapply(a1$Site, a1$SID, function(z) length(unique(z))) >= 2)); a1 <- a1[a1$SID %in% t1,]
+          if (nrow(a1) >= 10 && length(unique(a1$Site)) >= 3){
+            s1 <- stats::aggregate(x[o1], by=list(SID=SID[o1], Site=cls[o1],
+                                                  Ses=wide$SubjectFolder[o1]), FUN=stats::median)
+            names(s1)[4] <- "val"
+            d1 <- unlist(lapply(split(s1$val, paste(s1$SID, s1$Site, sep="\r")), function(v)
+                    if (length(v) < 2) numeric(0) else as.vector(stats::dist(v))), use.names=FALSE)
+            f1 <- mpolish(a1$SID, a1$Site, a1$val)
+            ve1 <- if (length(d1) >= 20) (1.4826*stats::median(abs(d1))/sqrt(2))^2
+                   else (1.4826*stats::median(abs(f1$resid)))^2
+            n1 <- neff_of(a1$SID, a1$Site); vt1 <- stats::sd(f1$site)^2
+            if (is.finite(n1) && (vt1+ve1/n1) > 0) gC1 <- vt1/(vt1+ve1/n1)
+          }
+        }
+      }
+      rsh <- if (nrep_sh > 0) splithalf(ag$SID, ag$Site, ag$val, nrep_sh) else NA_real_
       rows[[m]] <- c(list(BQM=m, n_subj=length(ts), n_sess=nrow(ag), meas_noise=round(noise,4),
-                          subj_spread=round(subjsd,4), site_spread=round(sitesd,4), ICC=round(icc,2)),
+                          subj_spread=round(subjsd,4), site_spread=round(sitesd,4),
+                          meas_noise_rep=round(se_rep,4), n_rep=n_rep, ve_src=ve_src,
+                          ICC=round(icc,2), ICC_site=round(iccT,2), n_eff=round(ne,1),
+                          G_nested=round(gN,2), G_crossed=round(gC,2), r_site=round(rsh,2),
+                          site_conc_top2=round(conc,2), G_crossed_1model=round(gC1,2),
+                          ICC_mad=round(icc_r,2), G_crossed_mad=round(gC_r,2)),
                      as.list(round(setNames(fit$site[allsites], allsites),4)))   # force names=allsites so rbind column names match across BQM
       if (is.finite(noise) && noise>0){ z<-fit$resid/noise; for (b in which(abs(z)>3)) anom[[length(anom)+1]] <-
         data.frame(SID=ag$SID[b],Site=ag$Site[b],BQM=m,value=round(ag$val[b],4),resid=round(fit$resid[b],4),resid_z=round(z[b],2),stringsAsFactors=FALSE) }
@@ -829,6 +979,90 @@ tryCatch({
       legend("bottomright",inset=c(0,-0.08),fill=c("#0072B2","#E69F00","#BBBBBB"),legend=c("subject (ICC)","site (harmonizable)","noise"),bty="n",cex=0.6,horiz=TRUE)
       title(sprintf("TS variance decomposition — %d BQM (subject fraction = ICC)",nrow(Pm)),cex.main=0.8,adj=0)
       par(op); grDevices::dev.off()
+      # Which decision is each BQM actually good for? Two bar tracks per row rather
+      # than two coloured cells: a bar length is read without a legend, and the two
+      # questions keep separate hues (red = ranking individuals, blue = ranking
+      # scanners) so a row's shape says at a glance which job the metric can do.
+      tryCatch({
+        xv <- bias$ICC; yv <- bias$G_crossed
+        okp <- is.finite(xv) & is.finite(yv)
+        if (sum(okp) >= 4){
+          # One threshold on both axes. Koo & Li's "good" band starts at 0.75 and
+          # applies to either coefficient; requiring "excellent" of the scanner axis
+          # alone made the two columns incomparable and systematically discarded the
+          # purest scanner metrics (low ICC, high G) -- 19 of them on this cohort.
+          TH <- 0.75
+          verdict <- function(a,b) if (b>=TH && a>=TH) "both" else
+                                   if (b>=TH) "SCANNER" else
+                                   if (a>=TH) "individual" else "neither"
+          IND <- "#C0392B"; INDBG <- "#F7E4E0"      # individual QC  : red
+          SCN <- "#1F6FB2"; SCNBG <- "#DEE9F4"      # scanner QC     : blue
+          # "both" is black + bold, not a blend of the other two. A red-green deficit
+          # pulls purple toward blue and red toward olive, so a mixed hue is exactly
+          # what cannot be read; black separates by lightness from all three.
+          vc <- c(SCANNER=SCN, individual=IND, both="#000000", neither="#999999")
+          ix <- which(okp)
+          vd <- vapply(ix, function(i) verdict(xv[i], yv[i]), character(1))
+          ord <- order(factor(vd, levels=c("SCANNER","both","individual","neither")), -yv[ix])
+          ix <- ix[ord]; vd <- vd[ord]
+          nb2 <- length(ix)
+          nm2 <- paste0(substr(bias$BQM[ix], 1, 1), "  ",
+                        sub("^(sMRI|fMRI|dMRI)_", "", bias$BQM[ix]))
+          W <- 1.0; GAP <- 0.30; X2 <- W + GAP      # track 1: [0,1]  track 2: [X2,X2+1]
+          grDevices::png(file.path(outdir,"bqm_site_reliability.png"),
+                         width=1420, height=20*nb2+235, res=120)
+          op <- par(mai=c(0.55, 4.95, 1.55, 1.75), xpd=NA)
+          plot(NA, xlim=c(0, X2+W), ylim=c(0.4, nb2+0.6), xaxt="n", yaxt="n",
+               xlab="", ylab="", bty="n")
+          # Rules. 68 rows span a wide figure, so the eye loses the line between the
+          # name on the left and the verdict on the right: a faint rule under every
+          # row, and a heavier one wherever the verdict changes, carry it across.
+          for (k in seq_len(nb2)){
+            yk <- nb2-k+1
+            segments(-0.40, yk-0.5, X2+W+0.75, yk-0.5, col="#EFEFEF", lwd=0.5, xpd=NA)
+            if (k < nb2 && vd[k] != vd[k+1])
+              segments(-0.40, yk-0.5, X2+W+0.75, yk-0.5, col="#AAAAAA", lwd=1.1, xpd=NA)
+          }
+          segments(-0.40, nb2+0.5, X2+W+0.75, nb2+0.5, col="#AAAAAA", lwd=1.1, xpd=NA)
+          segments(-0.40, 0.5,     X2+W+0.75, 0.5,     col="#AAAAAA", lwd=1.1, xpd=NA)
+          for (k in seq_len(nb2)){
+            yk <- nb2-k+1; i <- ix[k]; h <- 0.34
+            rect(0,  yk-h, W,     yk+h, col=INDBG, border=NA)
+            rect(X2, yk-h, X2+W,  yk+h, col=SCNBG, border=NA)
+            rect(0,  yk-h, xv[i],      yk+h, col=IND, border=NA)
+            rect(X2, yk-h, X2+yv[i],   yk+h, col=SCN, border=NA)
+            text(-0.045, yk, nm2[k], adj=1, cex=0.66, col="#333333")
+            text(W+0.035,     yk, sprintf("%.2f", xv[i]), adj=0, cex=0.60, col=IND)
+            text(X2+W+0.035,  yk, sprintf("%.2f", yv[i]), adj=0, cex=0.60, col=SCN)
+            text(X2+W+0.21,   yk, vd[k], adj=0, cex=0.63, col=vc[vd[k]])
+          }
+          # Koo & Li reliability bands (0.5 moderate, 0.75 good, 0.9 excellent); the
+          # verdict uses 0.75 / 0.90, drawn solid-dashed, the 0.5 band only as a guide
+          segments(0.50, 0.4, 0.50, nb2+0.6, col="#D9C2BE", lty=3, lwd=0.8)
+          segments(X2+0.50, 0.4, X2+0.50, nb2+0.6, col="#BBCFE2", lty=3, lwd=0.8)
+          segments(0.90, 0.4, 0.90, nb2+0.6, col="#D9C2BE", lty=3, lwd=0.8)
+          segments(X2+0.90, 0.4, X2+0.90, nb2+0.6, col="#BBCFE2", lty=3, lwd=0.8)
+          segments(TH, 0.4, TH, nb2+0.6, col="#9B5B52", lty=2, lwd=0.9)
+          segments(X2+TH, 0.4, X2+TH, nb2+0.6, col="#2E5C86", lty=2, lwd=0.9)
+          for (tr in c(0, X2)){
+            axis(1, at=tr+c(0,0.5,1), labels=c("0","0.5","1"), pos=0.35,
+                 cex.axis=0.62, col="#AAAAAA", col.axis="#777777", tcl=-0.2, lwd=0.8)
+          }
+          text(W/2,    nb2+1.95, "individual QC", cex=0.72, font=2, col=IND)
+          text(W/2,    nb2+1.20, "ICC",            cex=0.62, col="#777777")
+          text(X2+W/2, nb2+1.95, "scanner QC",    cex=0.72, font=2, col=SCN)
+          text(X2+W/2, nb2+1.20, "G_crossed",      cex=0.62, col="#777777")
+          text(X2+W+0.21, nb2+1.95, "use for", adj=0, cex=0.72, font=2, col="#333333")
+          rr <- suppressWarnings(stats::cor(xv[okp], yv[okp], method="spearman"))
+          mtext(sprintf("Each BQM is reliable for ONE of two decisions, rarely both (Spearman r = %+.2f over %d BQM)",
+                        rr, sum(okp)), side=3, line=3.0, adj=0, cex=0.8, font=2)
+          mtext("Longer red bar = ranks individuals well.  Longer blue bar = ranks scanners well.  Dashed, the 0.75 cut-off on both axes; dotted, the 0.5 and 0.9 Koo & Li band edges.",
+                side=3, line=2.1, adj=0, cex=0.62, col="#555555")
+          mtext("SCANNER = site exclusion criteria (G_crossed >= 0.75, ICC < 0.75); check G_crossed_1model before reading it as ranking devices.   individual = subject exclusion criteria (ICC >= 0.75, G_crossed < 0.75).",
+                side=3, line=1.3, adj=0, cex=0.58, col="#888888")
+          par(op); grDevices::dev.off()
+        }
+      }, error=function(e) message("BQM site-reliability plot skipped: ", conditionMessage(e)))
       # site-bias heatmap
       Sm <- as.matrix(bias[,allsites,drop=FALSE]); Sm <- sweep(Sm,1,ifelse(bias$meas_noise>0,bias$meas_noise,NA),"/"); Sm<-pmax(pmin(Sm,4),-4)
       pal<-grDevices::colorRampPalette(c("#2166AC","#4393C3","#F7F7F7","#F4A582","#D6604D","#B2182B"))(101)
@@ -847,31 +1081,76 @@ tryCatch({
         Mcl<-sapply(bias$BQM,function(m){ tapply(wide[[m]],sf,function(z) if(all(is.na(z))) NA_real_ else stats::median(z,na.rm=TRUE))[us] })
         Cc<-suppressWarnings(stats::cor(Mcl,use="pairwise.complete.obs",method="spearman")); Cc[is.na(Cc)]<-0
         hc<-stats::hclust(stats::as.dist(1-abs(Cc)),method="average"); clid<-stats::cutree(hc,h=0.3)
-        iccv<-bias$ICC; repf<-rep("",length(clid))
-        for (g in unique(clid)){ ix<-which(clid==g); repf[ix[order(-ifelse(is.na(iccv[ix]),-1,iccv[ix]))][1]]<-"YES" }
-        cltab<-data.frame(cluster=as.integer(clid), BQM=short, ICC=iccv, representative=repf, stringsAsFactors=FALSE)
-        cltab<-cltab[order(cltab$cluster,-ifelse(is.na(cltab$ICC),-1,cltab$ICC)),]
+        # No "representative per cluster". That used to pick the highest-ICC member,
+        # which is the wrong metric whenever the cluster is a scanner-QC one -- ICC and
+        # G_crossed are negatively related across BQM. It is also unnecessary: the
+        # clusters are already largely homogeneous in purpose (9 of 13 multi-member
+        # clusters have a single verdict; 26 of 39 clusters are a single BQM), so there
+        # is usually no choice to make, and where the cluster IS mixed the per-purpose
+        # ordering in bqm_site_reliability.png answers it directly.
+        cltab<-data.frame(cluster=as.integer(clid), BQM=short,
+                          ICC=bias$ICC, G_crossed=bias$G_crossed, stringsAsFactors=FALSE)
+        cltab<-cltab[order(cltab$cluster, -ifelse(is.na(cltab$G_crossed),-1,cltab$G_crossed)),]
         utils::write.table(cltab, file.path(outdir,"bqm_clusters.tsv"), sep="\t", row.names=FALSE, quote=FALSE)
-        hc$labels<-short
-        grDevices::png(file.path(outdir,"bqm_cluster_dendro.png"), width=1120, height=22*length(short)+110, res=120)
-        op<-par(mai=c(0.5,0.15,0.5,4.3)); plot(stats::as.dendrogram(hc),horiz=TRUE,nodePar=list(lab.cex=0.72,pch=NA),xlab="1 - |Spearman r|")
-        abline(v=0.3,col="#D55E00",lty=2); title(sprintf("BQM correlation clustering (|r|>0.7 -> %d clusters)",length(unique(clid))),cex.main=0.8); par(op); grDevices::dev.off()
-        reps<-cltab[cltab$representative=="YES",,drop=FALSE]; reps<-reps[order(-ifelse(is.na(reps$ICC),-1,reps$ICC)),]
-        rr<-paste(sprintf("<tr><td>%d</td><td>%s</td><td>%s</td></tr>",reps$cluster,reps$BQM,ifelse(is.na(reps$ICC),"NA",sprintf("%.2f",reps$ICC))),collapse="\n")
-        cl_html<-paste0("<h4>Correlation clusters &amp; representatives</h4>\n",
-          "<p style=\"font-size:0.9em;color:#555;margin:2px 0\">BQM clustered by |Spearman r| (cut at |r|&gt;0.7). Near-duplicate metrics merge; the representative per cluster is the one with the highest ICC. ",length(unique(clid))," clusters from ",length(short)," BQM. Table: <code>bqm_clusters.tsv</code>.</p>\n",
+        # one-letter modality tag on the leaves (s/d/f), as in the reliability figure:
+        # it is the only way to see whether a cluster crosses modalities
+        hc$labels <- paste0(substr(bias$BQM, 1, 1), "  ", short)
+        # Colour each leaf by the QC decision it is reliable for. The clustering itself
+        # knows nothing about ICC or G_crossed, so a cluster coming out in one colour is
+        # an independent observation: near-duplicate metrics tend to serve the same
+        # purpose, which is why picking a "representative per purpose" would be forcing
+        # a choice that mostly is not there.
+        .vcol <- c(SCANNER="#1F6FB2", individual="#C0392B", both="#000000", neither="#999999")
+        .verd <- mapply(function(a,b){
+            if (!is.finite(a) || !is.finite(b)) "neither"
+            else if (b >= 0.75 && a >= 0.75) "both"
+            else if (b >= 0.75) "SCANNER"
+            else if (a >= 0.75) "individual" else "neither" },
+          bias$ICC, ifelse(is.na(bias$G_crossed), -1, bias$G_crossed))
+        .lcol <- setNames(unname(.vcol[.verd]), hc$labels)
+        dnd <- stats::dendrapply(stats::as.dendrogram(hc), function(n){
+          if (stats::is.leaf(n)) {
+            lb <- attr(n, "label")
+            cc <- .lcol[[lb]]; if (is.null(cc) || is.na(cc)) cc <- "#999999"
+            attr(n, "nodePar") <- list(lab.cex=0.72, pch=NA, lab.col=cc)
+          }
+          n })
+        grDevices::png(file.path(outdir,"bqm_cluster_dendro.png"), width=1300, height=22*length(short)+150, res=120)
+        # right margin sized for the longest BQM name, not the typical one
+        op<-par(mai=c(0.5,0.15,0.7,5.55)); plot(dnd,horiz=TRUE,xlab="1 - |Spearman r|")
+        abline(v=0.3,col="#D55E00",lty=2)
+        title(sprintf("BQM correlation clustering (|r|>0.7 -> %d clusters)",length(unique(clid))),cex.main=0.8)
+        mtext("leaf colour = which QC decision the BQM is reliable for (see the reliability figure)",
+              side=3, line=0.1, cex=0.6, col="#777777")
+        legend("bottomleft", bty="n", horiz=TRUE, cex=0.65,
+               text.col=unname(.vcol), legend=names(.vcol), pch=NA)
+        par(op); grDevices::dev.off()
+        cl_html<-paste0("<h4>Correlation clusters</h4>\n",
+          "<p style=\"font-size:0.9em;color:#555;margin:2px 0\">BQM clustered by |Spearman r| (cut at |r|&gt;0.7), so near-duplicate metrics merge: this says which metrics carry the same information, not which to prefer. ",length(unique(clid))," clusters from ",length(short)," BQM. To choose metrics, read the per-purpose ordering above instead. Table: <code>bqm_clusters.tsv</code> (cluster, BQM, ICC, G_crossed).</p>\n",
           "<div style=\"display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start\">",
           "<div><a href=\"bqm_cluster_dendro.png\" target=\"_blank\" title=\"Open full image in a new tab\"><img src=\"bqm_cluster_dendro.png\" style=\"max-width:560px;border:1px solid #ccc;cursor:zoom-in\"/></a></div>",
-          "<div><table border=\"1\" cellpadding=\"3\" style=\"border-collapse:collapse;font-size:0.85em\"><thead><tr><th>cluster</th><th>representative BQM</th><th>ICC</th></tr></thead><tbody>\n",rr,"\n</tbody></table></div></div><br>\n")
+          "</div><br>\n")
       }, error=function(e) message("BQM clustering skipped: ", conditionMessage(e)))
       ts_html <- paste0(
         "<h3>4. BQM reliability</h3>\n",
         "<p style=\"font-size:0.9em;color:#555;margin:2px 0\">Using subjects scanned at &ge;2 Site/Projects, each BQM is decomposed (robust two-way median polish) into <b>subject</b> + <b>site</b> + residual. ",
         "<b>ICC</b> = subject fraction of variance (cross-site reproducibility); <b>site bias</b> = each site's systematic offset (in measurement-noise units); residual = measurement noise. ",
+        "<b>A BQM good for excluding individuals is not thereby good for evaluating scanners</b>, so the same components are also reported as site reliabilities: ",
+        "<b>ICC_site</b> = site share of a single observation (how much harmonisation could remove); ",
+        "<b>n_eff</b> = effective travellers per site after eliminating the subject effects (Schur complement of the incomplete design -- lower than the raw count); ",
+        "<b>G_nested</b> = reliability of a site mean from n_eff ordinary subjects (use this for a non-traveling cohort); ",
+        "<b>G_crossed</b> = reliability of a site mean when the subject effect is removable, i.e. with traveling subjects. ",
+        "All four use the same &sigma;<sub>e</sub>, taken from repeated sessions of the same subject at the same site rather than from the polish residual: the residual is measured on cell medians and shrunk by the fitting, and understates the error a site estimate faces (here 2.19x, in 65 of 66 BQM). Columns <code>meas_noise</code> (polish) and <code>meas_noise_rep</code> (direct) are both reported, with <code>ve_src</code> naming the one used. ",
+        "<b>Read G_crossed as separation, not as ranking.</b> It says the site means are reproducible, not that the sites are spread evenly: <b>site_conc_top2</b> gives the share of the site sum-of-squares carried by the two most deviant sites (even spread over k sites would be 2/k). Where that share is high the BQM <i>detects outlying devices</i> rather than ordering all of them. ",
+        "<b>G_crossed_1model</b> is the same coefficient recomputed inside the largest single-model group of sites, which is the stringent question: can the BQM tell two devices of the <i>same model</i> apart, as opposed to telling models or vendors apart? Metrics that fall away between the two columns were reading the model difference. ",
+        "<b>ICC_mad</b> and <b>G_crossed_mad</b> repeat ICC and G_crossed with the effect spreads taken by <code>mad()</code> instead of <code>sd()</code>. The median polish already protects against a bad session; applying mad() to the site-effect vector additionally discards the most deviant <i>devices</i>, which for a scanner coefficient removes the signal, so sd() is primary and these are a sensitivity check. Where the two disagree, the site variance sits in a few devices. ",
+        "The verdict uses the same cut-off on both coefficients (0.75, the Koo &amp; Li \"good\" band); the 0.5 and 0.9 band edges are drawn as guides only. A single threshold keeps the two columns comparable &mdash; an asymmetric one discards exactly the metrics that are purest for scanner QC. ",
+        "Set <code>BCIL_QC_SPLITHALF=1</code> to add <b>r_site</b>, the measured split-half reproducibility of the site-effect vector (slow: ~8 s per BQM). ",
         "Tables: <code>bqm_site_bias.tsv</code>, <code>bqm_ts_session_anomalies.tsv</code>.</p>\n",
         "<div style=\"display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start\">",
         "<div><a href=\"bqm_icc.png\" target=\"_blank\" title=\"Open full image in a new tab\"><img src=\"bqm_icc.png\" style=\"max-width:560px;border:1px solid #ccc;cursor:zoom-in\"/></a><div style=\"font-size:0.8em;color:#555\">Variance decomposition (blue=subject=ICC, orange=site, grey=noise). <i>Click to open full size in a new tab.</i></div></div>",
         "<div><a href=\"bqm_site_bias.png\" target=\"_blank\" title=\"Open full image in a new tab\"><img src=\"bqm_site_bias.png\" style=\"max-width:560px;border:1px solid #ccc;cursor:zoom-in\"/></a><div style=\"font-size:0.8em;color:#555\">Site bias per BQM (red=site reads high, blue=low). <i>Click to open full size in a new tab.</i></div></div>",
+        "<div><a href=\"bqm_site_reliability.png\" target=\"_blank\" title=\"Open full image in a new tab\"><img src=\"bqm_site_reliability.png\" style=\"max-width:560px;border:1px solid #ccc;cursor:zoom-in\"/></a><div style=\"font-size:0.8em;color:#555\">Individual-QC vs scanner-QC reliability. A long blue bar means the BQM separates scanners reliably (see site_conc_top2 and G_crossed_1model before reading it as ranking); a long red bar means it ranks individuals reliably. <i>Click to open full size in a new tab.</i></div></div>",
         "</div><br>\n", cl_html)
     }
   }
